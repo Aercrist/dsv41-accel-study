@@ -68,7 +68,8 @@ flowchart TB
 ```
 
 Each die streams its own half of every sharded weight from its own 4 stacks. Only activations and
-partial sums cross the die-to-die link.
+partial sums cross the die-to-die link. The model charges +0.1 µs per op hand-off and +0.2 µs per
+all-reduce for the crossing (assumption).
 
 ### Area (bottom-up, `sim/energy.py::asic_area`)
 
@@ -101,7 +102,7 @@ sequenceDiagram
   participant LNK as Links
   Note over HBM: static weights of layers l+1..l+k<br/>prefetched into staging while layer l runs
   SEQ->>CE: layer l attention chain (mHC, wqkv, wq_b, indexer, sparse attn, wo_a, wo_b)
-  CE->>LNK: all-reduce #1 (6 x 5120 BF16), ~1.4 µs
+  CE->>LNK: all-reduce #1 (6 x 5120 BF16), ~2.6 µs
   LNK->>CE: residual + mHC post
   CE->>RT: gate scores stream out of the MAC array
   RT->>HBM: expert ids (top-6 x 6 rows → ~35 distinct), 0.1 µs
@@ -114,17 +115,19 @@ sequenceDiagram
 fetch cannot start until layer *l*'s attention chain and gate finish. The HBM stays busy only if that
 chain finishes before the prefetcher runs out of *static* (data-independent) weights to stage. At TP4
 that is about 55 MB per package per layer: 29 MB sharded attention, 9 MB shared expert, 17 MB
-replicated projections. That is about 9 µs at the calibrated 6.2 TB/s.
+replicated projections. That is about {{ (55e6 / (8e12 * cal.hbm_eff) * 1e6)|n(0) }} µs at the calibrated {{ (8 * cal.hbm_eff)|n(1) }} TB/s. The condition holds on average,
+not per layer: a staging buffer of a few layers lets a slightly longer chain borrow from the next
+layer's static bytes, and the HBM idles only for the cumulative excess.
 
 | chain per layer | time | HBM busy |
 |---|---|---|
-| MDA-1: ~13 ops x 0.2 µs + 2 x 1.4 µs all-reduce + router + first byte | ~6 µs | {{ C.asic.hbm_busy|pct }} |
-| GPU dataflow-style software: ~13 x 0.5 µs hand-offs + 2 x 1.4 µs + router | ~10 µs | {{ C.gpu_df_tp4.hbm_busy|pct }} |
+| MDA-1: ~13 ops x 0.3 µs + 2 x 2.57 µs all-reduce + router + first byte | ~9 µs | {{ C.asic.hbm_busy|pct }} |
+| GPU dataflow-style software: ~13 x 0.5 µs hand-offs + 2 x 2.37 µs + router + first byte | ~12 µs | {{ C.gpu_df_tp4.hbm_busy|pct }} |
 | GPU today: ~9 dependent kernel stages x {{ cal.kernel_overhead_us|n(1) }} µs + collectives | ~{{ (K.fixed4_ms*1000/43)|n(0) }} µs | {{ C.gpu_tp4.hbm_busy|pct }} |
 
-Both of the first two keep the HBM nearly saturated. That is why they reach the same speed. The
-budget shrinks as packages are added, because each package's static bytes per layer shrink. That is
-where MDA-1's shorter hand-off starts to show ([04](04_results.md#strong-scaling)).
+Both of the first two keep the HBM mostly busy, which is why they reach nearly the same speed. The
+budget shrinks as packages are added, because each package's static bytes per layer shrink
+([04](04_results.md#strong-scaling)).
 
 ## 4. Datapaths and number formats
 
@@ -146,11 +149,11 @@ speed by under 1%: the prefetcher hides it. **A hardware router is not where sil
 
 | idea | from | where it lands | gain |
 |---|---|---|---|
-| unpadded expert layout | -- | software | A0→A1 +{{ ((K.abl_by.A1.tok_s_user/K.abl_by.A0.tok_s_user-1)*100)|n(0) }}% (TP4; the TP8 padding is +{{ ((W.layout_factor.tp8-1)*100)|n(0) }}% bytes) |
+| unpadded expert layout | -- | software | A0→A1 {{ sp(K.abl_by.A1.tok_s_user/K.abl_by.A0.tok_s_user - 1) }} (the streamed padding is +{{ ((W.layout_factor.tp8-1)*100)|n(1) }}% of routed bytes at TP8, ~0 at TP4) |
 | one persistent program, no per-kernel completion | Groq/Cerebras static scheduling; GPU megakernels | software or silicon | A1→A2 +{{ ((K.abl_by.A2.tok_s_user/K.abl_by.A1.tok_s_user-1)*100)|n(0) }}% (barriers), A2→A3 +{{ ((K.abl_by.A3.tok_s_user/K.abl_by.A2.tok_s_user-1)*100)|n(0) }}% (flags) |
 | Belady/MIN-optimal weight prefetch | caching theory: the static schedule *is* the future reference string | software (TMA L2 prefetch) or silicon (staging SRAM) | A3→A4 +{{ ((K.abl_by.A4.tok_s_user/K.abl_by.A3.tok_s_user-1)*100)|n(0) }}% |
-| speed-of-light in-network all-reduce | HPC (BlueGene, Anton); NVLS already reduces in the switch | software or silicon | A4→A5 +{{ ((K.abl_by.A5.tok_s_user/K.abl_by.A4.tok_s_user-1)*100)|n(0) }}% |
-| on-chip hand-off, HW router, Engram off-HBM | Etched-style specialization | silicon only | A5→A6 {{ "%+.0f"|format((K.abl_by.A6.tok_s_user/K.abl_by.A5.tok_s_user-1)*100) }}% at 4 chips; +{{ ((K.asic16/K.sw16-1)*100)|n(0) }}% at 16 |
+| in-network all-reduce | HPC (BlueGene, Anton) | already in the GPU baseline (NVLS reduces in the switch); MDA-1 assumes no faster link | ±0 by construction |
+| on-chip hand-off, HW router, Engram off-HBM | Etched-style specialization | silicon only | A4→A5 {{ sp(K.abl_by.A5.tok_s_user/K.abl_by.A4.tok_s_user - 1) }} at 4 chips |
 | LRU/LFU caching of experts | CDN / CPU caches | SRAM expert cache | **no**: half of MDA-1's SRAM holds {{ D.expert_cache.slots_per_layer_in_half_sram|n(1) }} expert slices per layer; a {{ D.expert_cache.curves.lru[3].hit|pct }} LRU hit needs {{ D.expert_cache.curves.lru[3].sram_gb_per_chip|n(0) }} GB per chip |
 | pre-gating / expert prediction | Pre-gated MoE (ISCA'24) | expert fetch before the gate | not needed: router latency is already hidden |
 

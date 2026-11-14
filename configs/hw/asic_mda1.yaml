@@ -7,7 +7,7 @@ kind: asic
 n_chips: 4
 hbm_bw: 8.0e12            # 8 stacks x 1.0 TB/s (HBM3E 8-Hi run at 8 Gb/s/pin, below its >9.2 rating); src: hbm3e
 hbm_cap: 192.0e9          # 8 x 24 GB 8-Hi stacks (src: hbm3e); weights need ~76 GB/chip at TP4
-hbm_eff: 0.80             # placeholder; experiments use the GPU's calibrated value (same HBM, same physics)
+hbm_eff: 0.80             # overridden at run time by the GPU's calibrated value (experiments/platforms.py, mode 'eff'): same HBM, same physics
 hbm_latency: 0.5e-6       # dependent (expert) fetch: controller queue + DRAM + NoC (assumption, swept)
 host_bw: 120.0e9          # LPDDR5X for Engram tables (assumption; Engram needs ~MB/s, see docs/01)
 host_latency: 1.0e-6
@@ -24,9 +24,9 @@ sram_bytes: 268435456     # 256 MiB
 sram_bw: 40.0e12
 stage_bytes: 128.0e6
 link_bw: 900.0e9          # per direction: 3 peers x 300 GB/s over 72 x 112G lanes (24 per peer)
-coll_latency: 1.4e-6      # = NVLink AllReduce speed-of-light computed for 2x GB200 (no link advantage assumed); src: ar-latency
+coll_latency: 2.57e-6     # measured best 4-GPU all-reduce 2.37 us (no link advantage assumed) + 0.2 us die-to-die crossing; src: ar-latency
 prefetch: true
-op_overhead: 0.2e-6       # mechanism: producer->consumer through on-chip buffers, no L2 round trip; ~300 cycles fill/drain at 1.5 GHz (assumption, swept)
+op_overhead: 0.3e-6       # producer->consumer through on-chip buffers (~300 cycles at 1.5 GHz) + ~0.1 us for ops whose operands cross the die-to-die link (assumption, swept)
 router_latency: 0.1e-6    # rtl/moe_topk_router.sv: 98 cycles (65 ns) + score epilogue
 serial_round_latency: 0.3e-6
 step_overhead: 2.0e-6     # step-boundary sync with host + sampler handoff
@@ -40,7 +40,6 @@ power:
   pj_per_flop: {fp4: 0.15, fp8: 0.25, bf16: 0.5, fp32: 1.5}   # 7 nm op energies x~2 for operand delivery; src: mac-energy
   static_w: 150           # leakage + PHY idle + clocks (assumption, swept)
   noc_pj_per_bit: 0.5     # moving every streamed byte across the die (low-swing 6.5-23 fJ/bit/mm at 16 nm x ~15 mm, x2; assumption)
-  d2d_pj_per_bit: 0.25    # UCIe advanced package; src: serdes-energy
   vr_efficiency: 0.88     # board + package power delivery (assumption)
 area:
   clock_hz: 1.5e9

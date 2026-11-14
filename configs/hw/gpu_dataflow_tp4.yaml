@@ -11,4 +11,4 @@ stage_bytes: 64.0e6       # assumption: a staging slice of L2 (>= the 32 MB knee
 op_overhead: 0.5e-6       # producer->consumer flag hand-off through L2 (RTT 0.306 us measured) + SM tail; src: ar-latency
 router_latency: 0.5e-6    # top-6 of 384 inside one CTA + expert issue (assumption)
 hbm_latency: 0.5e-6       # same DRAM as MDA-1
-coll_latency: 1.4e-6      # computed NVLink AllReduce speed-of-light (2x GB200); same as MDA-1; src: ar-latency
+coll_latency: 2.37e-6     # best *measured* 4-GPU small all-reduce (same value as today's baseline); src: ar-latency

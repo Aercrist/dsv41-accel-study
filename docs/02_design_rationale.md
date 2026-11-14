@@ -2,9 +2,9 @@
 # 02 · Design rationale: what to build, and why
 
 The bottleneck ([01](01_workload.md)) decides the target. Batch-1 decode of DeepSeek-V4.1-Flash
-streams about 10.2 GB per GPU per step at TP4. Most of it is FP4
+streams about 9.7 GB per GPU per step at TP4. Most of it is FP4
 routed experts that are known only after each layer's gate. About half the step
-(36%-57%) is fixed per-stage latency. The arithmetic per step is
+(43%-62%) is fixed per-stage latency. The arithmetic per step is
 about 229 GFLOP, under 50 µs of one B300's tensor cores.
 **The platform must turn HBM bandwidth into tokens with almost no per-stage overhead. It does not need many FLOPs.**
 
@@ -15,9 +15,9 @@ Every row comes from the same simulator and workload (batch 1, context 2.6K, acc
 | option | chips | tok/s/user | system kW | tokens/J | $/M tok (owned) | memory |
 |---|---|---|---|---|---|---|
 | 4x GB300, deepseek-ultrafast (calibrated) | 4 | 1,697 | 3.4 | 0.505 | 0.91 | 1,152 GB |
-| 4x GB300, dataflow-style software (projected) | 4 | 3,486 | 3.4 | 1.037 | 0.44 | 1,152 GB |
+| 4x GB300, dataflow-style software (projected) | 4 | 3,596 | 3.4 | 1.070 | 0.43 | 1,152 GB |
 | 16x Alveo V80 FPGA | 16 | 1,180 | 2.4 | 0.485 | 1.36 | 512 GB |
-| MDA-1 x4 (proposed) | 4 | 3,482 | 1.8 | 1.917 | 0.28 | 768 GB |
+| MDA-1 x4 (proposed) | 4 | 3,656 | 1.9 | 1.952 | 0.27 | 768 GB |
 | SRAM-only dataflow (GroqChip-class) (1518 chips, 35 per layer) | 1,518 | 10,848 | 280.8 | 0.039 | no public price | 349 GB |
 | Wafer-scale (WSE-3-class, 8 wafers) | 8 | 7,806 | 184.0 | 0.042 | no public price | 352 GB |
 
@@ -30,12 +30,11 @@ They size the system by weight capacity (307 GB resident) and assume optimistic 
 
 The cheapest accelerator is a better runtime. With the same physics as MDA-1 (same HBM efficiency,
 DRAM latency and collective speed-of-light), a dataflow-style program on 4 x GB300 projects
-**3,486 tok/s/user**, 2.0x the measured engine. MDA-1 is
-1.00x-1.20x of that across the joint Monte Carlo. The software
+**3,596 tok/s/user**, 2.1x the measured engine. MDA-1 is
+0.92x-1.19x of that across the joint Monte Carlo. The software
 needs no NRE and no new hardware. It does need engineering: one persistent program per model,
-flag-based hand-offs, TMA L2 prefetch of the next layers' dense weights, an unpadded expert layout,
-and a ~1.4 µs all-reduce. Nobody has shown this for a 43-block MoE across 4 GPUs. It is the first
-thing we would build.
+flag-based hand-offs, and TMA L2 prefetch of the next layers' dense weights while experts stream.
+Nobody has shown this for a 43-block MoE across 4 GPUs. It is the first thing we would build.
 
 ### FPGA (AMD Alveo V80 / Versal HBM class)
 
@@ -68,9 +67,9 @@ MDA-1 hard-wires only those primitives; everything model-specific is a compiled 
 
 At iso-bandwidth, MDA-1's batch-1 speed is the same as good GPU software. Silicon adds four things:
 
-1. **Cost per unit of HBM bandwidth.** About half of a B300's die area serves FLOPs this workload never uses. MDA-1 is two 336 mm² dies ($271 of silicon) around the same 8 stacks. The result is 1.6x lower $/M tokens than GPUs running the same software at $45K/GPU. At $25K/GPU it loses (0.93x).
-2. **Energy.** 1.8x tokens/J against the same-speed GPU if the GPU draws 60% of TDP (range 1.2x-3.1x for 40-100%). We have not measured GPU power, so this is the softest claim here.
-3. **Latency by construction.** The static schedule *is* the dataflow execution model. It does not depend on a heroic runtime, and the 0.2 µs on-chip hand-off leaves headroom as chips are added (+15% over the GPU software at 16 chips, with the same per-peer latency assumed).
+1. **Cost per unit of HBM bandwidth.** MDA-1 is two 336 mm² dies ($271 of silicon) around the same 8 stacks, priced at manufacturing cost plus NRE. Against GPUs bought at $45K and running the same software, that is 1.5x lower $/M tokens. Most of the gap is the GPU's purchase price (vendor margin and compute silicon this workload barely uses), so at $25K/GPU MDA-1 loses (0.95x).
+2. **Energy.** 1.8x tokens/J against the same-speed GPU if the GPU draws 60% of TDP (range 1.2x-3.0x for 40-100%). We have not measured GPU power, so this is the softest claim here.
+3. **Latency by construction.** The static schedule *is* the dataflow execution model, so MDA-1 does not depend on a heroic runtime. Its shorter on-chip hand-off matters little at 4 chips (+2%).
 4. **Capacity right-sizing.** Engram's 203 GB of tables need 76 kB per step, so they go to LPDDR. Weights then fit in 8-Hi stacks (192 GB), not 12-Hi.
 
 | decision | choice | reason (number from this study) |
@@ -82,11 +81,11 @@ At iso-bandwidth, MDA-1's batch-1 speed is the same as good GPU software. Silico
 | matrix engine | 16 rows x wide N, weight-streaming | SCALE-Sim: a 128x128 array reaches 0.3-1.5% utilization on decode GEMVs |
 | SRAM | 256 MiB (≥8 MB staging needed at batch 1) | dies are HBM-shoreline-bound with 222 mm² of whitespace, so SRAM is nearly free |
 | process | TSMC N4P (N5 family), not N3E | SRAM bitcell is 0.021 µm² on both; shoreline-bound dies; N3 wafers ~20% dearer |
-| collectives | in-fabric all-reduce, direct 4-package mesh | latency set to NVLink's computed speed-of-light (1.4 µs), with no link advantage assumed |
+| collectives | in-fabric all-reduce, direct 4-package mesh | latency set to the best measured 4-GPU all-reduce (2.37 µs) + 0.2 µs die crossing; no link advantage assumed |
 
 ## What a seasoned accelerator architect would weigh
 
-* **The software counterfactual dominates the decision.** If Baseten can ship the dataflow-style runtime, most of MDA-1's speed comes for free on hardware they already run. Build silicon only for $/token and W/token at scale.
-* **NRE amortization dominates ASIC cost.** At $300M NRE and 20K packages, NRE is $15,000 of $28,907 per package. Break-even against GPUs running the same software at $45K/GPU is about 9,000 packages ($300M NRE) or 18,000 ($600M). At hyperscaler volume that is easy; for a single inference provider it is the crux.
-* **Time to market.** Our assumption: 24-30 months to volume for an N4P two-die package with HBM3E (team-dependent; not sourced). Rubin ships now. Rubin with dataflow-style software projects 6,453 tok/s/user; MDA-1-HBM4 at the same bandwidth, 6,987.
-* **Risk register.** HBM and CoWoS supply (shared with GPU vendors); a static-schedule compiler that keeps up with a new model each quarter; the collective-latency target; demand that pays for low-latency tokens. If the market prices only throughput, GPUs with the same software are 1.27x ahead of MDA-1 per 4 chips at batch 256. MDA-1 carries 40% of their FLOPs.
+* **The software counterfactual dominates the decision.** If Baseten can ship the dataflow-style runtime, MDA-1's speed is available on hardware they already run, with no new silicon. Build silicon only for $/token and W/token at scale.
+* **NRE amortization dominates ASIC cost.** At $300M NRE and 20K packages, NRE is $15,000 of $28,907 per package. Break-even against GPUs running the same software at $45K/GPU is about 9,000 packages ($300M NRE) or 17,900 ($600M). At hyperscaler volume that is easy; for a single inference provider it is the crux.
+* **Time to market.** Our assumption: 24-30 months to volume for an N4P two-die package with HBM3E (team-dependent; not sourced). Rubin ships now. Rubin with dataflow-style software projects 6,149 tok/s/user; MDA-1-HBM4 at the same bandwidth, 6,159.
+* **Risk register.** HBM and CoWoS supply (shared with GPU vendors); a static-schedule compiler that keeps up with a new model each quarter; the collective-latency target; demand that pays for low-latency tokens. If the market prices only throughput, GPUs with the same software are 1.29x ahead of MDA-1 per 4 chips at batch 256. MDA-1 carries 40% of their FLOPs.

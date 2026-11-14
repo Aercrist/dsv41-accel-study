@@ -50,6 +50,12 @@ def x(v, d=1):
     return f"{v:.{d}f}x"
 
 
+def sp(v):
+    """Signed percent of a ratio-minus-one, without '-0%'."""
+    r = round(100 * v)
+    return "±0%" if r == 0 else f"{r:+d}%"
+
+
 def context() -> dict:
     W = json.loads((RESULTS / "workload.json").read_text())
     D = json.loads((RESULTS / "decode.json").read_text())
@@ -70,6 +76,7 @@ def context() -> dict:
     pr = {r["purchase_usd_per_gpu"]: r for r in cm["gpu_price_sweep"]}
     abl = D["ablation"]["steps"]
     MC = D["monte_carlo"]
+    ad = cm["prefill_adder"]["usd_per_mtok"]
     K = {
         "meas4": REP["configs"]["gb300_tp4"], "meas8": REP["configs"]["b300_tp8"],
         "fixed4_ms": fixed4, "fixed4_share": fixed4 / REP["configs"]["gb300_tp4"]["step_ms"],
@@ -87,8 +94,13 @@ def context() -> dict:
         "asic16": ss["asic"][3]["tok_s_user"], "sw16": ss["gpu_df_tp4"][3]["tok_s_user"], "gpu16": ss["gpu_tp4"][3]["tok_s_user"],
         "tpj_vs_sw": ps[0.6]["asic_ratio_vs_gpu_df"], "tpj_vs_sw_lo": ps[0.4]["asic_ratio_vs_gpu_df"], "tpj_vs_sw_hi": ps[1.0]["asic_ratio_vs_gpu_df"],
         "tpj_vs_gpu": ps[0.6]["asic_ratio_vs_gpu"], "tpj_vs_gpu_lo": ps[0.4]["asic_ratio_vs_gpu"], "tpj_vs_gpu_hi": ps[1.0]["asic_ratio_vs_gpu"],
-        "usd_vs_sw": pr[45000]["asic_ratio_vs_gpu_df"], "usd_vs_sw_lo": pr[25000]["asic_ratio_vs_gpu_df"], "usd_vs_sw_hi": pr[65000]["asic_ratio_vs_gpu_df"],
-        "usd_vs_gpu": pr[45000]["asic_ratio_vs_gpu"], "usd_vs_gpu_lo": pr[25000]["asic_ratio_vs_gpu"], "usd_vs_gpu_hi": pr[65000]["asic_ratio_vs_gpu"],
+        # $/token ratios include the GPU prefill-pool adder on both sides
+        "usd_vs_sw": (pr[45000]["gpu_df_usd_per_mtok"] + ad) / (C["asic"]["usd_per_mtok_owned"] + ad),
+        "usd_vs_sw_lo": (pr[25000]["gpu_df_usd_per_mtok"] + ad) / (C["asic"]["usd_per_mtok_owned"] + ad),
+        "usd_vs_sw_hi": (pr[65000]["gpu_df_usd_per_mtok"] + ad) / (C["asic"]["usd_per_mtok_owned"] + ad),
+        "usd_vs_gpu": (pr[45000]["gpu_usd_per_mtok"] + ad) / (C["asic"]["usd_per_mtok_owned"] + ad),
+        "rubin_df_vs_df": C["rubin_df_tp4"]["tok_s_user"] / C["gpu_df_tp4"]["tok_s_user"],
+        "rubin_df_vs_rubin": C["rubin_df_tp4"]["tok_s_user"] / C["rubin_tp4"]["tok_s_user"],
         "be_sw_300": cm["breakeven_volume"]["gpu_df_tp4@nre300M"], "be_sw_600": cm["breakeven_volume"]["gpu_df_tp4@nre600M"],
         "be_sw_150": cm["breakeven_volume"]["gpu_df_tp4@nre150M"], "be_gpu_300": cm["breakeven_volume"]["gpu_tp4@nre300M"],
         "rubin_vs_gb300": C["rubin_tp4"]["tok_s_user"] / C["gpu_tp4"]["tok_s_user"] - 1,
@@ -108,7 +120,8 @@ def main() -> None:
     env = jinja2.Environment(loader=jinja2.FileSystemLoader(str(TEMPLATES)), undefined=jinja2.StrictUndefined,
                              trim_blocks=True, lstrip_blocks=True, keep_trailing_newline=True)
     env.filters.update({"n": n, "pct": pct, "si": si, "x": x})
-    env.globals.update({"n": n, "pct": pct, "si": si, "x": x})
+    env.globals.update({"n": n, "pct": pct, "si": si, "x": x, "sp": sp})
+    env.filters["sp"] = sp
     ctx = context()
     for tpl, out in OUTPUTS.items():
         if not (TEMPLATES / tpl).exists():

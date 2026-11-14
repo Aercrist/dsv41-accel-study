@@ -18,22 +18,23 @@ then built an op-level performance simulator and calibrated it to the two report
    attributes {{ K.fixed4_ms|n(2) }} ms of the 3.30 ms step ({{ K.fixed4_share|pct }}) to dependent-stage
    and collective latency ({{ K.fixed_lo|pct }}-{{ K.fixed_hi|pct }} across every alternative calibration).
    HBM averages {{ pct(W.decode_per_gpu_tp4.total/1e9/K.meas4.step_ms/8.0) }} of peak.
-2. **The fix is an execution model, not FLOPs.** One persistent, statically ordered program removes
-   per-stage barriers. It streams the next layers' dense weights while the current layer's experts
-   are in flight, and uses an unpadded expert layout and speed-of-light all-reduces. On the **same 4 x GB300**
+2. **The fix is an execution model, not FLOPs.** It replaces dependent kernel launches with one
+   persistent, statically ordered program that hands off between stages with flags. It streams the next
+   layers' dense weights while the current layer's experts are in flight. On the **same 4 x GB300**
    this projects **{{ C.gpu_df_tp4.tok_s_user|n }} tok/s/user ({{ K.sw_vs_meas|x }} the measured engine)**. The
-   biggest levers are removing per-stage barriers (+{{ ((K.abl_by.A2.tok_s_user/K.abl_by.A1.tok_s_user-1)*100)|n(0) }}%) and
-   cross-layer weight prefetch (+{{ ((K.abl_by.A4.tok_s_user/K.abl_by.A3.tok_s_user-1)*100)|n(0) }}%).
+   levers are the persistent program (+{{ ((K.abl_by.A2.tok_s_user/K.abl_by.A1.tok_s_user-1)*100)|n(0) }}% if a stage hand-off can be cut to ~1 µs, the least
+   certain step), flags (+{{ ((K.abl_by.A3.tok_s_user/K.abl_by.A2.tok_s_user-1)*100)|n(0) }}%) and cross-layer weight prefetch (+{{ ((K.abl_by.A4.tok_s_user/K.abl_by.A3.tok_s_user-1)*100)|n(0) }}%).
 3. **Custom silicon built around that execution model matches it. It doesn't beat it.** MDA-1 is a
    decode ASIC: 2 dies, 8 x HBM3E at GB300's 8 TB/s, 2 PF FP8, a hardware MoE router (RTL-verified)
-   and in-fabric all-reduce. It projects **{{ C.asic.tok_s_user|n }} tok/s/user**. Drawing all its
+   and in-fabric all-reduce. It projects **{{ C.asic.tok_s_user|n }} tok/s/user**, {{ pct(C.asic.tok_s_user / K.roofline) }} of its HBM roofline. Drawing all its
    assumptions jointly, that is {{ K.MC.vs_gpu_measured.p5|x }}-{{ K.MC.vs_gpu_measured.p95|x }} the measured engine (5th-95th percentile), and
-   {{ K.MC.vs_sw.p5|x(2) }}-{{ K.MC.vs_sw.p95|x(2) }} the same-bandwidth GPU software. **Its case is economic:**
+   {{ K.MC.vs_sw.p5|x(2) }}-{{ K.MC.vs_sw.p95|x(2) }} the same-bandwidth GPU software (median {{ K.MC.vs_sw.p50|x(2) }}). **Its case is economic:**
    {{ K.usd_vs_sw|x }} lower $/M tokens and {{ K.tpj_vs_sw|x }} tokens/J against GPUs running the same software
    (GPUs owned at $45K, drawing 60% of TDP). Across $25-65K per GPU and 40-100% of TDP those ratios span
-   {{ K.usd_vs_sw_lo|x }}-{{ K.usd_vs_sw_hi|x }} and {{ K.tpj_vs_sw_lo|x }}-{{ K.tpj_vs_sw_hi|x }}. Break-even is about {{ K.be_sw_300|n(-3) }} chips at $300M NRE.
-4. **Bandwidth alone won't fix it.** Rubin (19.2 TB/s) with today's per-stage latency projects only
-   +{{ (K.rubin_vs_gb300*100)|n(0) }}% over GB300. With the dataflow execution model it projects {{ C.rubin_df_tp4.tok_s_user|n }} tok/s/user ({{ K.rubin_df_vs_gb300|x }}).
+   {{ K.usd_vs_sw_lo|x }}-{{ K.usd_vs_sw_hi|x }} and {{ K.tpj_vs_sw_lo|x }}-{{ K.tpj_vs_sw_hi|x }}. Break-even is about {{ K.be_sw_300|n(-2) }} chips at $300M NRE.
+4. **Bandwidth alone won't fix it.** Rubin (19.2 TB/s, {{ K.rubin_bw_ratio|n(1) }}x GB300) with today's per-stage
+   latency projects only +{{ (K.rubin_vs_gb300*100)|n(0) }}% over GB300. With dataflow-style software on both,
+   Rubin's bandwidth buys {{ K.rubin_df_vs_df|x(2) }} ({{ C.rubin_df_tp4.tok_s_user|n }} vs {{ C.gpu_df_tp4.tok_s_user|n }} tok/s/user).
 
 ![Where a decode step goes](results/fig_step_breakdown.png)
 
@@ -59,8 +60,8 @@ ${{ C.gpu_tp4.usd_per_mtok|n(2) }}/M.
 ## Method
 
 1. **Workload from code** ([docs/01](docs/01_workload.md)). Engine kernels, TP layout, padded expert layout, fusions and DSpark speculation are read from the Rust/CUDA source. Shapes and bytes come from the 48 safetensors headers, which reproduce the tech report's 552B / 196B / 16B / 8B parameters and 890 B/token KV.
-2. **Simulator** ([docs/06](docs/06_simulator.md)). An op-level, event-driven scheduler over compute, chunked prioritized HBM and links, with two policies: GPU kernels, and a statically scheduled dataflow with a prefetch window. Platforms differ only in constants. Same-physics constants are set equal across platforms (HBM efficiency, DRAM first-byte latency, collective speed-of-light).
-3. **Calibration.** 2 free GPU parameters fitted to 2 measured step times, refit under 10 alternative assumptions, including the README's run-to-run extremes. Leave-one-out: {{ "%+.1f"|format(cal.loo.b300_tp8.error_pct) }}% / {{ "%+.1f"|format(cal.loo.gb300_tp4.error_pct) }}% with an independent STREAM bandwidth prior. That is a weak test, and we say so.
+2. **Simulator** ([docs/06](docs/06_simulator.md)). An op-level, event-driven scheduler over compute, chunked prioritized HBM and links, with two policies: GPU kernels, and a statically scheduled dataflow with a prefetch window. Platforms differ only in constants. Same-physics constants are set equal across platforms: HBM efficiency, DRAM first-byte latency, and the best measured 4-GPU all-reduce.
+3. **Calibration.** 2 free GPU parameters fitted to 2 measured step times, refit under 10 alternative assumptions, including the README's run-to-run extremes. Leave-one-out: {{ "%+.1f"|format(cal.loo.b300_tp8.error_pct) }}% / {{ "%+.1f"|format(cal.loo.gb300_tp4.error_pct) }}% with an independent STREAM bandwidth prior. That is a weak test, and we say so. An adversarial reviewer checked the study twice ([what changed](docs/05_limitations.md#revisions-after-adversarial-review)).
 4. **Design and trade study** ([02](docs/02_design_rationale.md), [03](docs/03_architecture.md)). GPU software, FPGA, SRAM-only, wafer-scale and ASIC options run on one simulator. The MoE router is SystemVerilog, verified against a golden model ({{ RTL.match }}, {{ RTL.latency_cycles }} cycles). The matrix engine is cross-checked with SCALE-Sim v3, which corrected our model by 1.6x.
 5. **Experiments** ([04](docs/04_results.md)). Baseline vs proposed vs software; joint Monte Carlo; sweeps over chips, batch, context, HBM bandwidth and SRAM; an expert-cache study (LRU/LFU/Belady); a tornado; and an ablation that separates software steps from silicon.
 

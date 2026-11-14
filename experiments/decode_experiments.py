@@ -380,10 +380,10 @@ def expert_cache_study() -> dict:
 # ---------------------------------------------------------------------------------------------
 TORNADO = [
     ("ASIC HBM efficiency (0.65-0.935)", "hw", "hbm_eff", 0.65, 0.935),
-    ("ASIC collective latency (0.7-3 us)", "hw", "coll_latency", 3.0e-6, 0.7e-6),
-    ("ASIC per-op pipeline overhead (0.05-0.6 us)", "hw", "op_overhead", 0.6e-6, 0.05e-6),
+    ("ASIC collective latency (1.4-5 us)", "hw", "coll_latency", 5.0e-6, 1.4e-6),
+    ("ASIC per-op hand-off (0.1-0.9 us)", "hw", "op_overhead", 0.9e-6, 0.1e-6),
     ("ASIC dependent-fetch latency (0.2-2 us)", "hw", "hbm_latency", 2.0e-6, 0.2e-6),
-    ("ASIC router latency (0.05-2 us)", "hw", "router_latency", 2.0e-6, 0.05e-6),
+    ("ASIC router latency (0.03-0.33 us)", "hw", "router_latency", 0.33e-6, 0.03e-6),
     ("ASIC staging buffer (16-256 MB)", "hw", "stage_bytes", 16e6, 256e6),
     ("routing locality (0-0.6)", "wl", "locality", 0.0, 0.6),
     ("acceptance length (5.1-6.0)", "wl", "accept_len", 5.1, 6.0),
@@ -467,14 +467,17 @@ def monte_carlo(n: int = 300, seed: int = 7) -> dict:
     a0, d0 = platform("asic"), platform("gpu_df_tp4")
     vs_gpu, vs_sw, corner = [], [], None
     for _ in range(n):
-        shared = {"hbm_eff": float(rng.uniform(0.65, 0.935)), "hbm_latency": _logu(rng, 0.2e-6, 2e-6),
-                  "coll_latency": _logu(rng, 0.7e-6, 3e-6), "stage_bytes": _logu(rng, 16e6, 256e6)}
-        a = run(a0.replace(**shared, op_overhead=_logu(rng, 0.05e-6, 0.6e-6), router_latency=_logu(rng, 0.05e-6, 0.5e-6)))["tok_s_user"]
-        d = run(d0.replace(**shared, op_overhead=_logu(rng, 0.3e-6, 1.5e-6), router_latency=_logu(rng, 0.2e-6, 2e-6)))["tok_s_user"]
+        # every range is log-centred on the platform's base value (factor 3 either way)
+        shared = {"hbm_eff": float(rng.uniform(0.65, 0.935)), "hbm_latency": _logu(rng, 0.5e-6 / 3, 0.5e-6 * 3),
+                  "coll_latency": _logu(rng, 1.4e-6, 4.0e-6), "stage_bytes": _logu(rng, 16e6, 256e6)}
+        a = run(a0.replace(**shared, op_overhead=_logu(rng, a0.op_overhead / 3, a0.op_overhead * 3),
+                           router_latency=_logu(rng, a0.router_latency / 3, a0.router_latency * 3)))["tok_s_user"]
+        d = run(d0.replace(**shared, op_overhead=_logu(rng, d0.op_overhead / 3, d0.op_overhead * 3),
+                           router_latency=_logu(rng, d0.router_latency / 3, d0.router_latency * 3)))["tok_s_user"]
         vs_gpu.append(a / g)
         vs_sw.append(a / d)
-    corner = run(a0.replace(hbm_eff=0.65, hbm_latency=2e-6, coll_latency=3e-6, stage_bytes=16e6,
-                            op_overhead=0.6e-6, router_latency=2e-6))["tok_s_user"] / g
+    corner = run(a0.replace(hbm_eff=0.65, hbm_latency=1.5e-6, coll_latency=4e-6, stage_bytes=16e6,
+                            op_overhead=a0.op_overhead * 3, router_latency=a0.router_latency * 3))["tok_s_user"] / g
     q = lambda v: {"p5": float(np.percentile(v, 5)), "p50": float(np.percentile(v, 50)), "p95": float(np.percentile(v, 95)),
                    "min": float(np.min(v)), "max": float(np.max(v))}
     out = {"n": n, "vs_gpu": q(vs_gpu), "vs_sw": q(vs_sw), "worst_corner_vs_gpu": corner,
@@ -512,12 +515,11 @@ def ablation() -> dict:
     steps = [
         ("A0", "today", "4x GB300, deepseek-ultrafast (calibrated)", g, "engine"),
         ("A1", "software", "+ unpadded expert layout", disk(g), "disk"),
-        ("A2", "software", "+ persistent kernel, barrier per stage (1 us)", disk(g.replace(kernel_overhead=1e-6)), "disk"),
+        ("A2", "software", "+ one persistent program, barrier per stage (1 us; optimistic)", disk(g.replace(kernel_overhead=1e-6)), "disk"),
         ("A3", "software", "+ flag hand-offs instead of barriers (0.5 us), no prefetch", disk(g.replace(stage_bytes=0.0, **df)), "disk"),
-        ("A4", "software", "+ cross-layer weight prefetch into L2 (64 MB)", disk(g.replace(stage_bytes=d.stage_bytes, **df)), "disk"),
-        ("A5", "software", "+ speed-of-light all-reduce (1.4 us) = dataflow-style GPU software",
+        ("A4", "software", "+ cross-layer weight prefetch into L2 (64 MB) = dataflow-style GPU software",
          disk(g.replace(stage_bytes=d.stage_bytes, coll_latency=d.coll_latency, **df)), "disk"),
-        ("A6", "silicon", "MDA-1: on-chip hand-off (0.2 us), HW router (0.1 us), Engram off-HBM", a, "disk"),
+        ("A5", "silicon", "MDA-1: on-chip hand-off (0.3 us), HW router (0.1 us), Engram off-HBM", a, "disk"),
     ]
     out = []
     for sid, kind, lab, hw, _lay in steps:
@@ -533,7 +535,7 @@ def ablation() -> dict:
     for i, v in enumerate(vals):
         ax.text(i, v + 40, f"{v:,.0f}", ha="center", fontsize=7)
     short = ["GPU today\n(calibrated)", "unpadded\nlayout", "persistent\n+ barriers", "flag\nhand-offs", "+ L2\nprefetch",
-             "+ fast\nall-reduce", "MDA-1\n(silicon)"]
+             "MDA-1\n(silicon)"]
     ax.set_xticks(range(len(vals)), [f'{o["id"]}\n{s}' for o, s in zip(out, short)], fontsize=7)
     ax.set_ylabel("tok/s/user (batch 1, 4 chips x 8 TB/s)")
     ax.set_title("Ablation: grey = software on the same GPUs, red = new silicon (simulated)")
