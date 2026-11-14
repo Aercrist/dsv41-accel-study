@@ -70,5 +70,11 @@ def asic_area(hw: Hardware) -> dict:
     }
     core = sum(blocks.values())
     blocks["noc_ctrl_misc"] = core * a["misc_fraction"]
-    blocks["total"] = sum(blocks.values())
+    logic = sum(blocks.values())
+    # HBM PHYs must sit on the die edge: half the stacks along each long side
+    long_side = a["hbm_stacks"] / 2 * a.get("mm_shoreline_per_hbm", 0.0)
+    shore = long_side * a.get("min_short_side_mm", 0.0)
+    blocks["shoreline_floor"] = shore
+    blocks["total"] = max(logic, shore)
+    blocks["whitespace"] = blocks["total"] - logic
     return blocks

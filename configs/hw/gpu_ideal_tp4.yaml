@@ -1,0 +1,11 @@
+# Optimistic bound on GPU software: megakernel + cross-layer weight prefetch into L2 (TMA
+# bulk prefetch) + the fastest published small all-reduce. Not demonstrated for this model;
+# used to ask "does the ASIC still win against the best plausible GPU code?".
+extends: gb300_tp4.yaml
+name: 4x GB300, ideal software (bound)
+prefetch: true
+stage_bytes: 64.0e6       # assumption: a staging slice of L2 (L2 size not in sources)
+op_overhead: 1.0e-6       # one device-wide barrier per dependent stage; src: ar-latency
+router_latency: 1.0e-6    # gate -> top-k -> expert issue inside the megakernel (assumption)
+hbm_latency: 1.0e-6
+coll_latency: 2.37e-6     # best published 4-GPU small all-reduce; src: ar-latency

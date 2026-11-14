@@ -30,6 +30,7 @@ class Hardware:
     # compute (dense FLOP/s)
     peak: dict = field(default_factory=lambda: {"fp4": 10e15, "fp8": 5e15, "bf16": 2.5e15, "fp32": 0.08e15})
     mm_eff: float = 0.7  # achievable matmul efficiency when compute-bound
+    array_rows: int = 0  # rows (GEMM M) the matrix engine processes per pass; 0 = ignore M padding
     topk_rate: float = 2e12  # elements/s through top-k selection
     # on-chip memory
     sram_bytes: float = 0.0

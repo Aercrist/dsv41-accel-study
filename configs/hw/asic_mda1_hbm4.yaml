@@ -1,0 +1,13 @@
+# MDA-1 respin with HBM4 (projection for comparison with Rubin): same core, 8 HBM4 stacks at
+# the JEDEC 2 TB/s each (below Rubin's 22 TB/s). Area/power/cost updated where sources exist.
+extends: asic_mda1.yaml
+name: MDA-1 HBM4 x4 (projected)
+hbm_bw: 16.0e12           # 8 x 2 TB/s (JEDEC JESD270-4); src: hbm4
+hbm_cap: 288.0e9          # 8 x 36 GB 12-high
+link_bw: 1800.0e9
+power:
+  hbm_pj_per_bit: 3.0     # HBM3E figure x 0.75 (SK hynix claims >40% better); src: hbm4
+area:
+  mm2_per_hbm_phy: 15.0   # GUC HBM4 PHY (unverified); src: hbm-phy-area
+cost:
+  hbm_usd_per_gb: 16.0    # ~$2/Gb in 2H26; src: hbm-price
