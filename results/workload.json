@@ -174,6 +174,14 @@
   "kv": 36669730.0,
   "total": 5244654000.0
  },
+ "engram": {
+  "lookup_bytes_per_step": 76032.0,
+  "table_bytes": 202755300000.0,
+  "wkv_bytes_per_step": 314880000.0
+ },
+ "kernels_per_step": 587,
+ "collectives_per_step": 86,
+ "ops_per_step": 554,
  "ep_alltoall_bytes_per_layer": 737280,
  "tp_allreduce_bytes_per_layer": 122880,
  "prefill_table_64k": [
@@ -325,9 +333,9 @@
   }
  ],
  "ridge": {
-  "fp4": 1875.0,
-  "fp8": 625.0,
-  "bf16": 312.5
+  "fp4": 1753.246753,
+  "fp8": 584.415584,
+  "bf16": 292.207792
  },
  "roofline_points": [
   {

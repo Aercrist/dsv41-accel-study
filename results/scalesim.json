@@ -97,7 +97,7 @@
    "cycles": 12316,
    "scalesim_util": 0.02923,
    "scalesim_mapping_util": 0.02923,
-   "model_util": 0.05
+   "model_util": 0.03125
   },
   {
    "array": "16x1024 OS (MDA-1)",
@@ -108,7 +108,7 @@
    "cycles": 18544,
    "scalesim_util": 0.207075,
    "scalesim_mapping_util": 0.207075,
-   "model_util": 0.3
+   "model_util": 0.1875
   },
   {
    "array": "16x1024 OS (MDA-1)",
@@ -119,7 +119,7 @@
    "cycles": 12316,
    "scalesim_util": 0.175382,
    "scalesim_mapping_util": 0.175382,
-   "model_util": 0.3
+   "model_util": 0.1875
   },
   {
    "array": "16x1024 OS (MDA-1)",
@@ -130,9 +130,9 @@
    "cycles": 98528,
    "scalesim_util": 0.467684,
    "scalesim_mapping_util": 0.467684,
-   "model_util": 0.8
+   "model_util": 0.5
   }
  ],
  "tool": "SCALE-Sim v3.0.0 (pip scalesim), compute stage only",
- "note": "util = ideal MACs / (array MACs x cycles), including fill/drain. model_util is the simulator's assumption for MDA-1's 16-row engine: mm_eff (0.8) x M / (ceil(M/16) x 16)."
+ "note": "util = ideal MACs / (array MACs x cycles), including fill/drain. model_util is the simulator's assumption for MDA-1's 16-row engine: mm_eff x M / (ceil(M/16) x 16). mm_eff was 0.8 before this cross-check and was lowered to 0.5 because SCALE-Sim showed the 0.8 model 1.5-1.7x optimistic."
 }

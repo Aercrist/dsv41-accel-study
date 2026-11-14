@@ -113,6 +113,14 @@ def main() -> dict:
                "experts_routed": sum(o.w_dyn for o in ops) / tp, "kv": sum(o.kv_rep for o in ops) + sum(o.kv_tp for o in ops) / tp}
         per["total"] = sum(per.values())
         out[f"decode_per_gpu_tp{tp}"] = per
+    out["engram"] = {
+        "lookup_bytes_per_step": sum(o.host for o in ops),
+        "table_bytes": pc["engram_tables"] * (1 + 1 / 32),
+        "wkv_bytes_per_step": sum(o.w_tp for o in ops if o.name == "engram_wkv"),
+    }
+    out["kernels_per_step"] = sum(o.n_kernels for o in ops)
+    out["collectives_per_step"] = sum(1 for o in ops if o.coll > 0)
+    out["ops_per_step"] = len(ops)
     # what an expert-parallel (all-to-all) layout would move instead of the two all-reduces
     rows = wl.verify_rows
     out["ep_alltoall_bytes_per_layer"] = 2 * rows * s.n_activated_experts * s.dim * 2  # dispatch + combine, bf16
@@ -145,18 +153,25 @@ def main() -> dict:
     markers = {"decode, batch 1 (measured workload)": ("o", "#c0392b"), "decode, batch 64": ("s", "#e67e22"),
                "prefill, 8K chunk @64K ctx": ("^", "#2471a3")}
     seen = set()
+    prec = {"attn_core": "bf16", "indexer": "fp4"}
+    short = {"attn_proj": "attn proj", "moe_routed": "routed experts", "moe_shared": "shared expert", "attn_core": "attn core",
+             "indexer": "indexer", "head": "LM heads"}
+    offs = {"attn_proj": (6, -12), "moe_shared": (6, 4), "head": (-48, 6), "moe_routed": (6, -6), "attn_core": (6, -10), "indexer": (6, -6)}
     for label, cat, x in pts:
-        y = min(hw.peak["fp8"], x * hw.hbm_bw) / 1e12
+        y = min(hw.peak[prec.get(cat, "fp8")], x * hw.hbm_bw) / 1e12
         m, c = markers[label]
         ax.scatter([x], [y], marker=m, color=c, s=36, zorder=3, label=None if label in seen else label)
         seen.add(label)
-        if label.startswith("decode, batch 1"):
-            ax.annotate(cat.replace("_", " "), (x, y), textcoords="offset points", xytext=(4, -10), fontsize=7, color=c)
+        if label.startswith("decode, batch 1") or label.startswith("prefill"):
+            ax.annotate(short[cat], (x, y), textcoords="offset points", xytext=offs.get(cat, (4, -10)), fontsize=6.5, color=c)
     out["roofline_points"] = [{"series": a, "category": b, "intensity": c} for a, b, c in pts]
     ax.set_xscale("log"); ax.set_yscale("log")
     ax.set_xlabel("arithmetic intensity (FLOP / byte of HBM traffic)")
     ax.set_ylabel("attainable TFLOP/s per GPU")
-    ax.set_title("DeepSeek-V4.1-Flash ops on the B300 roofline (modeled)")
+    ax.set_title("DeepSeek-V4.1-Flash ops on the HGX B300 roofline (per GPU, modeled)")
+    for p_, x_ in (("fp8", hw.peak["fp8"] / hw.hbm_bw),):
+        ax.axvline(x_, color="0.75", lw=0.8, ls=":")
+        ax.text(x_ * 1.1, 40, f"FP8 ridge\n{x_:.0f} FLOP/B", fontsize=6.5, color="0.4")
     ax.legend(fontsize=7, loc="lower right")
     fig.tight_layout()
     fig.savefig(FIG / "fig_roofline.png", dpi=160)

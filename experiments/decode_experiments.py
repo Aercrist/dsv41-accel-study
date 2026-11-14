@@ -121,7 +121,24 @@ def baseline_vs_proposed() -> dict:
             r["usd_per_mtok_owned"] = r["usd_per_mtok"]
         rows.append(r)
     asic = platform("asic")
-    out = {"rows": rows, "asic_area_mm2": asic_area(asic), "asic_unit_cost": asic_unit_cost(asic),
+    # break-even production volume: ASIC $/Mtok (TCO incl. NRE/volume) == GPU owned $/Mtok
+    from scipy.optimize import brentq
+    a_run = {r["key"]: r for r in rows}
+
+    def asic_usd(volume, nre=None):
+        c = dict(asic.cost, volume_units=volume, **({"nre_usd": nre} if nre else {}))
+        return run(asic.replace(cost=c))["usd_per_mtok"]
+
+    breakeven = {}
+    for gk in ("gpu_tp4", "gpu_ideal_tp4"):
+        tgt = a_run[gk]["usd_per_mtok_owned"]
+        for nre in (150e6, 300e6, 600e6):
+            try:
+                v = brentq(lambda vol: asic_usd(vol, nre) - tgt, 100, 1e7)
+            except ValueError:
+                v = None
+            breakeven[f"{gk}@nre{int(nre/1e6)}M"] = v
+    out = {"rows": rows, "asic_area_mm2": asic_area(asic), "asic_unit_cost": asic_unit_cost(asic), "breakeven_volume": breakeven,
            "asic_hbm4_area_mm2": asic_area(platform("asic_hbm4")), "asic_hbm4_unit_cost": asic_unit_cost(platform("asic_hbm4"))}
     # measured reference
     out["measured"] = {k: {"tok_s": v["decode_tok_s"], "step_ms": v["step_ms"]} for k, v in REP["configs"].items()}
@@ -163,8 +180,10 @@ def strong_scaling() -> dict:
         out[key] = pts
     style()
     fig, ax = plt.subplots(figsize=(6.0, 3.8))
+    names = {"gpu_tp4": "GB300-class GPUs, deepseek-ultrafast overheads (calibrated)", "gpu_mk_tp4": "GPUs, fused megakernel (projected)",
+             "gpu_ideal_tp4": "GPUs, ideal software (bound)", "asic": "MDA-1 (proposed)"}
     for key, col, m in (("gpu_tp4", PALETTE["gpu"], "o"), ("gpu_mk_tp4", "#a6acaf", "^"), ("gpu_ideal_tp4", "#5d6d7e", "s"), ("asic", PALETTE["asic"], "D")):
-        ax.plot(chips, [p["tok_s_user"] for p in out[key]], marker=m, color=col, label=label(key))
+        ax.plot(chips, [p["tok_s_user"] for p in out[key]], marker=m, color=col, label=names[key])
     for k, v in REP["configs"].items():
         n = 4 if k == "gb300_tp4" else 8
         ax.scatter([n], [v["decode_tok_s"]], marker="*", s=140, color="black", zorder=5, label="measured (deepseek-ultrafast README)" if n == 4 else None)
@@ -371,6 +390,8 @@ def _asic_with(kind, key, val):
 
 def tornado() -> dict:
     base = run(platform("asic"))
+    base_gpu = run(platform("gpu_tp4"))["tok_s_user"]
+    base["speedup"] = base["tok_s_user"] / base_gpu
     gpu_tok = ACCEPT / 3.30e-3
     rows = []
     for lab, kind, key, lo, hi in TORNADO:
@@ -378,19 +399,23 @@ def tornado() -> dict:
         for tag, v in (("low", lo), ("high", hi)):
             hw, wl = _asic_with(kind, key, v)
             r = run(hw, wl)
-            res[tag] = {"value": v, "tok_s_user": r["tok_s_user"], "usd_per_mtok": r["usd_per_mtok"], "tok_per_joule": r["tok_per_joule"]}
+            g = run(platform("gpu_tp4"), wl)["tok_s_user"] if kind == "wl" else base_gpu
+            res[tag] = {"value": v, "tok_s_user": r["tok_s_user"], "speedup": r["tok_s_user"] / g,
+                        "usd_per_mtok": r["usd_per_mtok"], "tok_per_joule": r["tok_per_joule"]}
         rows.append({"param": lab, **res})
-    # GPU-side uncertainties: speedup vs the calibrated GPU under alternative GPU assumptions
+    # GPU-side cost uncertainty: owned-basis $/Mtok of the calibrated GPU vs purchase price
     gpu_rows = []
-    for lab, kw in (("GPU purchase price $25K", {"cost": {"purchase_usd_per_gpu": 25000}}),
-                    ("GPU purchase price $65K", {"cost": {"purchase_usd_per_gpu": 65000}})):
-        gpu_rows.append({"case": lab})
-    out = {"base": {k: base[k] for k in ("tok_s_user", "usd_per_mtok", "tok_per_joule")}, "rows": rows,
-           "gpu_measured_tok_s": gpu_tok}
+    for price in (25000, 45000, 65000):
+        hw = platform("gpu_tp4")
+        hw = hw.replace(cost={**hw.cost, "purchase_usd_per_gpu": price})
+        gpu_rows.append({"purchase_usd_per_gpu": price, "usd_per_mtok_owned": run(hw, cost_mode="owned")["usd_per_mtok"]})
+    out = {"base": {k: base[k] for k in ("tok_s_user", "speedup", "usd_per_mtok", "tok_per_joule")}, "rows": rows,
+           "gpu_measured_tok_s": gpu_tok, "gpu_owned_cost_sweep": gpu_rows}
     style()
     fig, axs = plt.subplots(1, 3, figsize=(13.5, 5.2), sharey=True)
-    metrics = (("tok_s_user", "MDA-1 tok/s/user"), ("usd_per_mtok", "MDA-1 $/M tokens (TCO)"), ("tok_per_joule", "MDA-1 tokens/J"))
-    order = sorted(range(len(rows)), key=lambda i: -abs(rows[i]["high"]["tok_s_user"] - rows[i]["low"]["tok_s_user"])
+    metrics = (("speedup", "MDA-1 speedup vs 4x GB300 model (same workload)"), ("usd_per_mtok", "MDA-1 $/M tokens (TCO)"),
+               ("tok_per_joule", "MDA-1 tokens/J"))
+    order = sorted(range(len(rows)), key=lambda i: -abs(rows[i]["high"]["speedup"] - rows[i]["low"]["speedup"])
                    - 1e-3 * abs(rows[i]["high"]["usd_per_mtok"] - rows[i]["low"]["usd_per_mtok"]))
     y = np.arange(len(rows))
     for ax, (m, title) in zip(axs, metrics):
@@ -401,10 +426,10 @@ def tornado() -> dict:
             ax.barh(yi, hi - b, left=b, color=PALETTE["asic"], height=0.6)
         ax.axvline(b, color="black", lw=0.8)
         ax.set_title(title, fontsize=9)
-    axs[0].set_yticks(y, [rows[i]["param"] for i in order], fontsize=7)
+    axs[0].set_yticks(y, [rows[i]["param"].replace("$", r"\$") for i in order], fontsize=7)
     axs[0].invert_yaxis()
-    axs[0].axvline(gpu_tok, color=PALETTE["gpu"], ls="--", lw=1)
-    axs[0].text(gpu_tok, len(rows) - 0.3, " measured 4xGB300", fontsize=7, color="0.3")
+    axs[0].axvline(1.0, color=PALETTE["gpu"], ls="--", lw=1)
+    axs[0].text(1.0, len(rows) - 0.3, " parity", fontsize=7, color="0.3")
     fig.suptitle("Tornado: one-at-a-time sensitivity (red = favourable end of range; simulated)", fontsize=10)
     fig.tight_layout()
     fig.savefig(FIG / "fig_tornado.png")

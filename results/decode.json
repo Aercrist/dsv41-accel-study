@@ -321,27 +321,27 @@
     "hbm_gb_per_chip": 9.645739,
     "watts": 1646.620817,
     "tok_per_joule": 2.453225,
-    "usd_per_hour": 3.491286,
-    "usd_per_mtok": 0.240078,
+    "usd_per_hour": 3.49474,
+    "usd_per_mtok": 0.240315,
     "breakdown_ms": {
      "overhead": 0.0968,
      "collective": 0.142361,
-     "memory": 1.108983,
-     "compute": 0.038156
+     "memory": 0.82925,
+     "compute": 0.317889
     },
     "by_category_ms": {
      "head": 0.043472,
      "collective": 0.129104,
-     "moe_routed": 0.956627,
-     "moe_shared": 0.01142,
+     "moe_routed": 0.9482,
+     "moe_shared": 0.020774,
      "router": 0.009569,
      "mhc": 0.021301,
-     "attn_proj": 0.129818,
-     "attn_core": 0.049032,
-     "indexer": 0.021961,
+     "attn_proj": 0.128536,
+     "attn_core": 0.047309,
+     "indexer": 0.02229,
      "engram": 0.006763,
      "misc": 0.0002,
-     "draft": 0.005032
+     "draft": 0.006781
     },
     "energy_parts_j": {
      "hbm": 1.234655,
@@ -352,7 +352,7 @@
      "static": 0.83178
     },
     "key": "asic",
-    "usd_per_mtok_owned": 0.240078
+    "usd_per_mtok_owned": 0.240315
    },
    {
     "platform": "16x Alveo V80 FPGA",
@@ -441,35 +441,35 @@
     "n_chips": 4,
     "batch": 1,
     "context": 2600,
-    "step_ms": 0.771736,
-    "tok_s_user": 7256.368357,
-    "tok_s_system": 7256.368357,
-    "tok_s_per_chip": 1814.092089,
-    "hbm_busy": 0.867969,
+    "step_ms": 0.823956,
+    "tok_s_user": 6796.480237,
+    "tok_s_system": 6796.480237,
+    "tok_s_per_chip": 1699.120059,
+    "hbm_busy": 0.81296,
     "hbm_gb_per_chip": 9.645739,
-    "watts": 2080.126081,
-    "tok_per_joule": 3.488427,
-    "usd_per_hour": 3.744527,
-    "usd_per_mtok": 0.143343,
+    "watts": 1986.319872,
+    "tok_per_joule": 3.421644,
+    "usd_per_hour": 3.734031,
+    "usd_per_mtok": 0.152613,
     "breakdown_ms": {
      "overhead": 0.0968,
      "collective": 0.13768,
-     "memory": 0.499099,
-     "compute": 0.038156
+     "memory": 0.271586,
+     "compute": 0.317889
     },
     "by_category_ms": {
-     "head": 0.009639,
+     "head": 0.012604,
      "collective": 0.124752,
-     "moe_routed": 0.485065,
-     "moe_shared": 0.01142,
+     "moe_routed": 0.478341,
+     "moe_shared": 0.020774,
      "router": 0.009569,
      "mhc": 0.021216,
-     "attn_proj": 0.049486,
-     "attn_core": 0.036586,
-     "indexer": 0.017542,
-     "engram": 0.00139,
+     "attn_proj": 0.089018,
+     "attn_core": 0.037967,
+     "indexer": 0.018783,
+     "engram": 0.003317,
      "misc": 0.0002,
-     "draft": 0.00287
+     "draft": 0.005414
     },
     "energy_parts_j": {
      "hbm": 0.925991,
@@ -477,10 +477,10 @@
      "compute": 0.060584,
      "links": 0.001348,
      "host_dram": 1.2e-05,
-     "static": 0.463042
+     "static": 0.494374
     },
     "key": "asic_hbm4",
-    "usd_per_mtok_owned": 0.143343
+    "usd_per_mtok_owned": 0.152613
    }
   ],
   "asic_area_mm2": {
@@ -490,19 +490,29 @@
    "serdes": 33.6,
    "lpddr_phy": 12.0,
    "noc_ctrl_misc": 80.733333,
-   "total": 403.666667
+   "shoreline_floor": 448.0,
+   "total": 448.0,
+   "whitespace": 44.333333
   },
   "asic_unit_cost": {
-   "die": 176.915821,
+   "die": 207.193153,
    "hbm": 2880.0,
    "package_test": 2500,
    "host_dram": 256.0,
    "system_share": 8000,
    "nre_share": 15000.0,
-   "total": 28812.915821,
-   "area_mm2": 403.666667,
-   "dies_per_wafer": 141.939477,
-   "yield": 0.676985
+   "total": 28843.193153,
+   "area_mm2": 448.0,
+   "dies_per_wafer": 126.294908,
+   "yield": 0.649662
+  },
+  "breakeven_volume": {
+   "gpu_tp4@nre150M": 1497.188655,
+   "gpu_tp4@nre300M": 2994.37731,
+   "gpu_tp4@nre600M": 5988.75462,
+   "gpu_ideal_tp4@nre150M": 3209.804655,
+   "gpu_ideal_tp4@nre300M": 6419.60931,
+   "gpu_ideal_tp4@nre600M": 12839.21862
   },
   "asic_hbm4_area_mm2": {
    "hbm_phy_ctrl": 120.0,
@@ -511,19 +521,21 @@
    "serdes": 33.6,
    "lpddr_phy": 12.0,
    "noc_ctrl_misc": 86.733333,
-   "total": 433.666667
+   "shoreline_floor": 448.0,
+   "total": 448.0,
+   "whitespace": 14.333333
   },
   "asic_hbm4_unit_cost": {
-   "die": 197.125049,
+   "die": 207.193153,
    "hbm": 4608.0,
    "package_test": 2500,
    "host_dram": 256.0,
    "system_share": 8000,
    "nre_share": 15000.0,
-   "total": 30561.125049,
-   "area_mm2": 433.666667,
-   "dies_per_wafer": 130.993703,
-   "yield": 0.65835
+   "total": 30571.193153,
+   "area_mm2": 448.0,
+   "dies_per_wafer": 126.294908,
+   "yield": 0.649662
   },
   "measured": {
    "gb300_tp4": {
@@ -620,25 +632,25 @@
     "n_chips": 2,
     "tok_s_user": 2146.552185,
     "step_ms": 2.608835,
-    "usd_per_mtok": 0.226013
+    "usd_per_mtok": 0.226236
    },
    {
     "n_chips": 4,
     "tok_s_user": 4039.530656,
     "step_ms": 1.3863,
-    "usd_per_mtok": 0.240078
+    "usd_per_mtok": 0.240315
    },
    {
     "n_chips": 8,
-    "tok_s_user": 6648.278261,
-    "step_ms": 0.842323,
-    "usd_per_mtok": 0.290648
+    "tok_s_user": 6464.460665,
+    "step_ms": 0.866275,
+    "usd_per_mtok": 0.298932
    },
    {
     "n_chips": 16,
-    "tok_s_user": 8365.975337,
-    "step_ms": 0.669378,
-    "usd_per_mtok": 0.457849
+    "tok_s_user": 8121.933198,
+    "step_ms": 0.689491,
+    "usd_per_mtok": 0.471736
    }
   ]
  },
@@ -662,7 +674,7 @@
     "usd_per_mtok": 4.484856,
     "usd_per_mtok_owned": 0.655089,
     "tok_per_joule": 0.700476,
-    "hbm_busy": 0.477899
+    "hbm_busy": 0.4779
    },
    {
     "batch": 4,
@@ -672,7 +684,7 @@
     "usd_per_mtok": 2.978532,
     "usd_per_mtok_owned": 0.435065,
     "tok_per_joule": 1.054726,
-    "hbm_busy": 0.602902
+    "hbm_busy": 0.602903
    },
    {
     "batch": 8,
@@ -682,7 +694,7 @@
     "usd_per_mtok": 2.04999,
     "usd_per_mtok_owned": 0.299436,
     "tok_per_joule": 1.532463,
-    "hbm_busy": 0.705305
+    "hbm_busy": 0.705306
    },
    {
     "batch": 16,
@@ -692,7 +704,7 @@
     "usd_per_mtok": 1.355353,
     "usd_per_mtok_owned": 0.197972,
     "tok_per_joule": 2.317872,
-    "hbm_busy": 0.767638
+    "hbm_busy": 0.767639
    },
    {
     "batch": 32,
@@ -702,7 +714,7 @@
     "usd_per_mtok": 0.802824,
     "usd_per_mtok_owned": 0.117266,
     "tok_per_joule": 3.913103,
-    "hbm_busy": 0.787814
+    "hbm_busy": 0.787817
    },
    {
     "batch": 64,
@@ -712,7 +724,7 @@
     "usd_per_mtok": 0.435634,
     "usd_per_mtok_owned": 0.063632,
     "tok_per_joule": 7.211413,
-    "hbm_busy": 0.770326
+    "hbm_busy": 0.770331
    },
    {
     "batch": 128,
@@ -722,7 +734,7 @@
     "usd_per_mtok": 0.243332,
     "usd_per_mtok_owned": 0.035543,
     "tok_per_joule": 12.910513,
-    "hbm_busy": 0.711604
+    "hbm_busy": 0.711612
    },
    {
     "batch": 256,
@@ -732,7 +744,7 @@
     "usd_per_mtok": 0.145529,
     "usd_per_mtok_owned": 0.021257,
     "tok_per_joule": 21.58694,
-    "hbm_busy": 0.629293
+    "hbm_busy": 0.629308
    }
   ],
   "gpu_ideal_tp4": [
@@ -764,7 +776,7 @@
     "usd_per_mtok": 2.129125,
     "usd_per_mtok_owned": 0.310995,
     "tok_per_joule": 1.475505,
-    "hbm_busy": 0.843428
+    "hbm_busy": 0.843429
    },
    {
     "batch": 8,
@@ -774,7 +786,7 @@
     "usd_per_mtok": 1.626983,
     "usd_per_mtok_owned": 0.237648,
     "tok_per_joule": 1.930896,
-    "hbm_busy": 0.888681
+    "hbm_busy": 0.888682
    },
    {
     "batch": 16,
@@ -784,7 +796,7 @@
     "usd_per_mtok": 1.146635,
     "usd_per_mtok_owned": 0.167485,
     "tok_per_joule": 2.739787,
-    "hbm_busy": 0.907368
+    "hbm_busy": 0.90737
    },
    {
     "batch": 32,
@@ -794,7 +806,7 @@
     "usd_per_mtok": 0.700344,
     "usd_per_mtok_owned": 0.102297,
     "tok_per_joule": 4.485702,
-    "hbm_busy": 0.903094
+    "hbm_busy": 0.903097
    },
    {
     "batch": 64,
@@ -804,7 +816,7 @@
     "usd_per_mtok": 0.385024,
     "usd_per_mtok_owned": 0.056239,
     "tok_per_joule": 8.159315,
-    "hbm_busy": 0.871581
+    "hbm_busy": 0.871587
    },
    {
     "batch": 128,
@@ -814,7 +826,7 @@
     "usd_per_mtok": 0.216445,
     "usd_per_mtok_owned": 0.031615,
     "tok_per_joule": 14.514223,
-    "hbm_busy": 0.799997
+    "hbm_busy": 0.800007
    },
    {
     "batch": 256,
@@ -824,7 +836,7 @@
     "usd_per_mtok": 0.130676,
     "usd_per_mtok_owned": 0.019087,
     "tok_per_joule": 24.040651,
-    "hbm_busy": 0.700823
+    "hbm_busy": 0.700839
    }
   ],
   "asic": [
@@ -833,90 +845,90 @@
     "tok_s_user": 4039.530656,
     "tok_s_system": 4039.530656,
     "step_ms": 1.3863,
-    "usd_per_mtok": 0.240078,
-    "usd_per_mtok_owned": 0.240078,
+    "usd_per_mtok": 0.240315,
+    "usd_per_mtok_owned": 0.240315,
     "tok_per_joule": 2.453225,
     "hbm_busy": 0.966375
    },
    {
     "batch": 2,
-    "tok_s_user": 2453.906202,
-    "tok_s_system": 4907.812405,
-    "step_ms": 2.282076,
-    "usd_per_mtok": 0.197629,
-    "usd_per_mtok_owned": 0.197629,
-    "tok_per_joule": 2.973932,
-    "hbm_busy": 0.960638
+    "tok_s_user": 2400.679825,
+    "tok_s_system": 4801.359651,
+    "step_ms": 2.332673,
+    "usd_per_mtok": 0.202047,
+    "usd_per_mtok_owned": 0.202047,
+    "tok_per_joule": 2.95015,
+    "hbm_busy": 0.939803
    },
    {
     "batch": 4,
-    "tok_s_user": 1486.595568,
-    "tok_s_system": 5946.382271,
-    "step_ms": 3.766996,
-    "usd_per_mtok": 0.163266,
-    "usd_per_mtok_owned": 0.163266,
-    "tok_per_joule": 3.54616,
-    "hbm_busy": 0.975189
+    "tok_s_user": 1466.831791,
+    "tok_s_system": 5867.327166,
+    "step_ms": 3.817752,
+    "usd_per_mtok": 0.165546,
+    "usd_per_mtok_owned": 0.165546,
+    "tok_per_joule": 3.529143,
+    "hbm_busy": 0.962225
    },
    {
     "batch": 8,
-    "tok_s_user": 922.780122,
-    "tok_s_system": 7382.240975,
-    "step_ms": 6.068618,
-    "usd_per_mtok": 0.131583,
-    "usd_per_mtok_owned": 0.131583,
-    "tok_per_joule": 4.362245,
-    "hbm_busy": 0.974774
+    "tok_s_user": 899.22655,
+    "tok_s_system": 7193.812397,
+    "step_ms": 6.227574,
+    "usd_per_mtok": 0.135029,
+    "usd_per_mtok_owned": 0.135029,
+    "tok_per_joule": 4.322103,
+    "hbm_busy": 0.949895
    },
    {
     "batch": 16,
-    "tok_s_user": 634.091439,
-    "tok_s_system": 10145.46303,
-    "step_ms": 8.831534,
-    "usd_per_mtok": 0.095811,
-    "usd_per_mtok_owned": 0.095811,
-    "tok_per_joule": 5.927216,
-    "hbm_busy": 0.963977
+    "tok_s_user": 619.854522,
+    "tok_s_system": 9917.672348,
+    "step_ms": 9.034378,
+    "usd_per_mtok": 0.098021,
+    "usd_per_mtok_owned": 0.098021,
+    "tok_per_joule": 5.87987,
+    "hbm_busy": 0.942335
    },
    {
     "batch": 32,
-    "tok_s_user": 506.924012,
-    "tok_s_system": 16221.568378,
-    "step_ms": 11.047021,
-    "usd_per_mtok": 0.060006,
-    "usd_per_mtok_owned": 0.060006,
-    "tok_per_joule": 9.264837,
-    "hbm_busy": 0.936962
+    "tok_s_user": 488.697043,
+    "tok_s_system": 15638.305365,
+    "step_ms": 11.459042,
+    "usd_per_mtok": 0.062214,
+    "usd_per_mtok_owned": 0.062214,
+    "tok_per_joule": 9.147899,
+    "hbm_busy": 0.903275
    },
    {
     "batch": 64,
-    "tok_s_user": 447.806979,
-    "tok_s_system": 28659.646629,
-    "step_ms": 12.505388,
-    "usd_per_mtok": 0.034056,
-    "usd_per_mtok_owned": 0.034056,
-    "tok_per_joule": 15.681163,
-    "hbm_busy": 0.878311
+    "tok_s_user": 419.379301,
+    "tok_s_system": 26840.275276,
+    "step_ms": 13.353067,
+    "usd_per_mtok": 0.036301,
+    "usd_per_mtok_owned": 0.036301,
+    "tok_per_joule": 15.339757,
+    "hbm_busy": 0.822559
    },
    {
     "batch": 128,
-    "tok_s_user": 384.37318,
-    "tok_s_system": 49199.76709,
-    "step_ms": 14.569175,
-    "usd_per_mtok": 0.019925,
-    "usd_per_mtok_owned": 0.019925,
-    "tok_per_joule": 25.219805,
-    "hbm_busy": 0.777992
+    "tok_s_user": 344.295216,
+    "tok_s_system": 44069.787703,
+    "step_ms": 16.265111,
+    "usd_per_mtok": 0.022156,
+    "usd_per_mtok_owned": 0.022156,
+    "tok_per_joule": 24.347983,
+    "hbm_busy": 0.69688
    },
    {
     "batch": 256,
-    "tok_s_user": 301.111485,
-    "tok_s_system": 77084.540242,
-    "step_ms": 18.597763,
-    "usd_per_mtok": 0.012793,
-    "usd_per_mtok_owned": 0.012793,
-    "tok_per_joule": 36.342624,
-    "hbm_busy": 0.644666
+    "tok_s_user": 254.647803,
+    "tok_s_system": 65189.837546,
+    "step_ms": 21.991158,
+    "usd_per_mtok": 0.015018,
+    "usd_per_mtok_owned": 0.015018,
+    "tok_per_joule": 34.55864,
+    "hbm_busy": 0.545202
    }
   ]
  },
@@ -964,35 +976,35 @@
     "step_ms": 11.505393,
     "tok_s_user": 486.728272,
     "tok_s_system": 7787.65235,
-    "hbm_gb_per_chip": 61.299406
+    "hbm_gb_per_chip": 61.299529
    },
    {
     "context": 16384,
     "step_ms": 11.510202,
     "tok_s_user": 486.524903,
     "tok_s_system": 7784.398446,
-    "hbm_gb_per_chip": 61.321132
+    "hbm_gb_per_chip": 61.321254
    },
    {
     "context": 65536,
     "step_ms": 11.517646,
     "tok_s_user": 486.210444,
     "tok_s_system": 7779.367101,
-    "hbm_gb_per_chip": 61.354555
+    "hbm_gb_per_chip": 61.354678
    },
    {
     "context": 262144,
     "step_ms": 11.547424,
     "tok_s_user": 484.956662,
     "tok_s_system": 7759.306593,
-    "hbm_gb_per_chip": 61.488248
+    "hbm_gb_per_chip": 61.488371
    },
    {
     "context": 1048576,
     "step_ms": 11.666532,
     "tok_s_user": 480.005537,
     "tok_s_system": 7680.088593,
-    "hbm_gb_per_chip": 62.023022
+    "hbm_gb_per_chip": 62.023145
    }
   ],
   "asic_b1": [
@@ -1026,47 +1038,47 @@
    },
    {
     "context": 1048576,
-    "step_ms": 1.392604,
-    "tok_s_user": 4021.24362,
-    "tok_s_system": 4021.24362,
+    "step_ms": 1.410071,
+    "tok_s_user": 3971.430798,
+    "tok_s_system": 3971.430798,
     "hbm_gb_per_chip": 9.69113
    }
   ],
   "asic_b16": [
    {
     "context": 4096,
-    "step_ms": 8.832439,
-    "tok_s_user": 634.026441,
-    "tok_s_system": 10144.423057,
-    "hbm_gb_per_chip": 61.299102
+    "step_ms": 9.035731,
+    "tok_s_user": 619.761674,
+    "tok_s_system": 9916.186781,
+    "hbm_gb_per_chip": 61.299225
    },
    {
     "context": 16384,
-    "step_ms": 8.839876,
-    "tok_s_user": 633.493055,
-    "tok_s_system": 10135.888887,
-    "hbm_gb_per_chip": 61.320827
+    "step_ms": 9.046849,
+    "tok_s_user": 619.000081,
+    "tok_s_system": 9904.001297,
+    "hbm_gb_per_chip": 61.32095
    },
    {
     "context": 65536,
-    "step_ms": 8.851377,
-    "tok_s_user": 632.669888,
-    "tok_s_system": 10122.718212,
-    "hbm_gb_per_chip": 61.354251
+    "step_ms": 9.064012,
+    "tok_s_user": 617.827924,
+    "tok_s_system": 9885.246791,
+    "hbm_gb_per_chip": 61.354374
    },
    {
     "context": 262144,
-    "step_ms": 8.903361,
-    "tok_s_user": 628.975982,
-    "tok_s_system": 10063.615717,
-    "hbm_gb_per_chip": 61.487944
+    "step_ms": 9.136257,
+    "tok_s_user": 612.942506,
+    "tok_s_system": 9807.080097,
+    "hbm_gb_per_chip": 61.488067
    },
    {
     "context": 1048576,
-    "step_ms": 9.120416,
-    "tok_s_user": 614.007089,
-    "tok_s_system": 9824.113431,
-    "hbm_gb_per_chip": 62.022718
+    "step_ms": 9.443909,
+    "tok_s_user": 592.974809,
+    "tok_s_system": 9487.596944,
+    "hbm_gb_per_chip": 62.022841
    }
   ]
  },
@@ -1138,15 +1150,15 @@
    },
    {
     "hbm_tb_s": 12.0,
-    "tok_s_user": 5877.92574
+    "tok_s_user": 5655.956475
    },
    {
     "hbm_tb_s": 16.0,
-    "tok_s_user": 7213.689651
+    "tok_s_user": 6757.177485
    },
    {
     "hbm_tb_s": 22.0,
-    "tok_s_user": 8727.171671
+    "tok_s_user": 8036.17874
    }
   ]
  },
@@ -1154,52 +1166,52 @@
   "points": [
    {
     "stage_mb": 0,
-    "tok_s_user": 3962.379064,
-    "hbm_busy": 0.947919,
-    "die_mm2": 343.666667,
-    "usd_per_mtok": 0.244282
+    "tok_s_user": 3475.833694,
+    "hbm_busy": 0.831522,
+    "die_mm2": 448.0,
+    "usd_per_mtok": 0.27784
    },
    {
     "stage_mb": 4,
-    "tok_s_user": 3991.369498,
-    "hbm_busy": 0.954854,
-    "die_mm2": 343.666667,
-    "usd_per_mtok": 0.242573
+    "tok_s_user": 3989.815632,
+    "hbm_busy": 0.954482,
+    "die_mm2": 448.0,
+    "usd_per_mtok": 0.243198
    },
    {
     "stage_mb": 8,
-    "tok_s_user": 4004.671537,
-    "hbm_busy": 0.958036,
-    "die_mm2": 343.666667,
-    "usd_per_mtok": 0.241797
+    "tok_s_user": 4003.107298,
+    "hbm_busy": 0.957662,
+    "die_mm2": 448.0,
+    "usd_per_mtok": 0.242421
    },
    {
     "stage_mb": 16,
-    "tok_s_user": 4038.886428,
-    "hbm_busy": 0.966221,
-    "die_mm2": 343.666667,
-    "usd_per_mtok": 0.239824
+    "tok_s_user": 4029.931645,
+    "hbm_busy": 0.964079,
+    "die_mm2": 448.0,
+    "usd_per_mtok": 0.240866
    },
    {
     "stage_mb": 32,
     "tok_s_user": 4039.530656,
     "hbm_busy": 0.966375,
-    "die_mm2": 343.666667,
-    "usd_per_mtok": 0.239787
+    "die_mm2": 448.0,
+    "usd_per_mtok": 0.240315
    },
    {
     "stage_mb": 64,
     "tok_s_user": 4039.530656,
     "hbm_busy": 0.966375,
-    "die_mm2": 363.666667,
-    "usd_per_mtok": 0.23988
+    "die_mm2": 448.0,
+    "usd_per_mtok": 0.240315
    },
    {
     "stage_mb": 128,
     "tok_s_user": 4039.530656,
     "hbm_busy": 0.966375,
-    "die_mm2": 403.666667,
-    "usd_per_mtok": 0.240078
+    "die_mm2": 448.0,
+    "usd_per_mtok": 0.240315
    },
    {
     "stage_mb": 256,
@@ -1356,15 +1368,15 @@
    },
    {
     "hit": 0.4,
-    "tok_s_user": 5525.6247
+    "tok_s_user": 5440.054991
    },
    {
     "hit": 0.6,
-    "tok_s_user": 6771.133378
+    "tok_s_user": 6421.316104
    },
    {
     "hit": 0.8,
-    "tok_s_user": 8377.902882
+    "tok_s_user": 7702.144269
    }
   ],
   "slots_per_layer_in_half_sram": 0.7139,
@@ -1373,7 +1385,8 @@
  "tornado": {
   "base": {
    "tok_s_user": 4039.530656,
-   "usd_per_mtok": 0.240078,
+   "speedup": 2.380438,
+   "usd_per_mtok": 0.240315,
    "tok_per_joule": 2.453225
   },
   "rows": [
@@ -1382,13 +1395,15 @@
     "low": {
      "value": 0.8,
      "tok_s_user": 3604.159273,
-     "usd_per_mtok": 0.267999,
+     "speedup": 2.12388,
+     "usd_per_mtok": 0.268266,
      "tok_per_joule": 2.349795
     },
     "high": {
      "value": 0.95,
      "tok_s_user": 4255.998692,
-     "usd_per_mtok": 0.228321,
+     "speedup": 2.507999,
+     "usd_per_mtok": 0.228547,
      "tok_per_joule": 2.499549
     }
    },
@@ -1396,14 +1411,16 @@
     "param": "ASIC collective latency (0.7-3 us)",
     "low": {
      "value": 3e-06,
-     "tok_s_user": 3909.236945,
-     "usd_per_mtok": 0.247782,
-     "tok_per_joule": 2.423788
+     "tok_s_user": 3786.62222,
+     "speedup": 2.231402,
+     "usd_per_mtok": 0.255769,
+     "tok_per_joule": 2.394939
     },
     "high": {
      "value": 1e-06,
      "tok_s_user": 4041.571413,
-     "usd_per_mtok": 0.239961,
+     "speedup": 2.38164,
+     "usd_per_mtok": 0.240198,
      "tok_per_joule": 2.453676
     }
    },
@@ -1411,14 +1428,16 @@
     "param": "ASIC per-op pipeline overhead (0.05-0.6 us)",
     "low": {
      "value": 1e-06,
-     "tok_s_user": 3905.37656,
-     "usd_per_mtok": 0.248018,
-     "tok_per_joule": 2.422897
+     "tok_s_user": 3802.380167,
+     "speedup": 2.240688,
+     "usd_per_mtok": 0.254746,
+     "tok_per_joule": 2.398711
     },
     "high": {
      "value": 0.0,
      "tok_s_user": 4039.967788,
-     "usd_per_mtok": 0.240053,
+     "speedup": 2.380695,
+     "usd_per_mtok": 0.24029,
      "tok_per_joule": 2.453321
     }
    },
@@ -1427,13 +1446,15 @@
     "low": {
      "value": 2e-06,
      "tok_s_user": 3695.638642,
-     "usd_per_mtok": 0.261587,
+     "speedup": 2.177787,
+     "usd_per_mtok": 0.261846,
      "tok_per_joule": 2.372771
     },
     "high": {
      "value": 0.0,
      "tok_s_user": 4116.134784,
-     "usd_per_mtok": 0.235776,
+     "speedup": 2.425579,
+     "usd_per_mtok": 0.236009,
      "tok_per_joule": 2.469974
     }
    },
@@ -1441,14 +1462,16 @@
     "param": "ASIC router latency (0.05-2 us)",
     "low": {
      "value": 2e-06,
-     "tok_s_user": 4039.530656,
-     "usd_per_mtok": 0.240078,
-     "tok_per_joule": 2.453225
+     "tok_s_user": 3973.25718,
+     "speedup": 2.341384,
+     "usd_per_mtok": 0.244175,
+     "tok_per_joule": 2.438404
     },
     "high": {
      "value": 0.0,
      "tok_s_user": 4039.530656,
-     "usd_per_mtok": 0.240078,
+     "speedup": 2.380438,
+     "usd_per_mtok": 0.240315,
      "tok_per_joule": 2.453225
     }
    },
@@ -1456,14 +1479,16 @@
     "param": "ASIC staging buffer (16-256 MB)",
     "low": {
      "value": 16000000.0,
-     "tok_s_user": 4038.886428,
-     "usd_per_mtok": 0.240115,
-     "tok_per_joule": 2.453082
+     "tok_s_user": 4029.931645,
+     "speedup": 2.374781,
+     "usd_per_mtok": 0.240866,
+     "tok_per_joule": 2.451097
     },
     "high": {
      "value": 256000000.0,
      "tok_s_user": 4039.530656,
-     "usd_per_mtok": 0.240078,
+     "speedup": 2.380438,
+     "usd_per_mtok": 0.240315,
      "tok_per_joule": 2.453225
     }
    },
@@ -1472,13 +1497,15 @@
     "low": {
      "value": 0.0,
      "tok_s_user": 4039.530656,
-     "usd_per_mtok": 0.240078,
+     "speedup": 2.380438,
+     "usd_per_mtok": 0.240315,
      "tok_per_joule": 2.453225
     },
     "high": {
      "value": 0.6,
      "tok_s_user": 6009.219573,
-     "usd_per_mtok": 0.161413,
+     "speedup": 3.035326,
+     "usd_per_mtok": 0.161573,
      "tok_per_joule": 3.638843
     }
    },
@@ -1487,13 +1514,15 @@
     "low": {
      "value": 5.1,
      "tok_s_user": 3678.858276,
-     "usd_per_mtok": 0.263615,
+     "speedup": 2.380438,
+     "usd_per_mtok": 0.263876,
      "tok_per_joule": 2.234187
     },
     "high": {
      "value": 6.1,
      "tok_s_user": 4400.203036,
-     "usd_per_mtok": 0.220399,
+     "speedup": 2.380438,
+     "usd_per_mtok": 0.220617,
      "tok_per_joule": 2.672262
     }
    },
@@ -1502,13 +1531,15 @@
     "low": {
      "value": 131072,
      "tok_s_user": 4036.94325,
-     "usd_per_mtok": 0.24025,
+     "speedup": 2.379939,
+     "usd_per_mtok": 0.240488,
      "tok_per_joule": 2.448441
     },
     "high": {
      "value": 2600,
      "tok_s_user": 4039.530656,
-     "usd_per_mtok": 0.240078,
+     "speedup": 2.380438,
+     "usd_per_mtok": 0.240315,
      "tok_per_joule": 2.453225
     }
    },
@@ -1517,13 +1548,15 @@
     "low": {
      "value": 600000000.0,
      "tok_s_user": 4039.530656,
-     "usd_per_mtok": 0.357745,
+     "speedup": 2.380438,
+     "usd_per_mtok": 0.357983,
      "tok_per_joule": 2.453225
     },
     "high": {
      "value": 100000000.0,
      "tok_s_user": 4039.530656,
-     "usd_per_mtok": 0.161633,
+     "speedup": 2.380438,
+     "usd_per_mtok": 0.16187,
      "tok_per_joule": 2.453225
     }
    },
@@ -1532,13 +1565,15 @@
     "low": {
      "value": 5000,
      "tok_s_user": 4039.530656,
-     "usd_per_mtok": 0.59308,
+     "speedup": 2.380438,
+     "usd_per_mtok": 0.593318,
      "tok_per_joule": 2.453225
     },
     "high": {
      "value": 100000,
      "tok_s_user": 4039.530656,
-     "usd_per_mtok": 0.145944,
+     "speedup": 2.380438,
+     "usd_per_mtok": 0.146181,
      "tok_per_joule": 2.453225
     }
    },
@@ -1547,13 +1582,15 @@
     "low": {
      "value": 20.0,
      "tok_s_user": 4039.530656,
-     "usd_per_mtok": 0.247609,
+     "speedup": 2.380438,
+     "usd_per_mtok": 0.247846,
      "tok_per_joule": 2.453225
     },
     "high": {
      "value": 10.0,
      "tok_s_user": 4039.530656,
-     "usd_per_mtok": 0.232547,
+     "speedup": 2.380438,
+     "usd_per_mtok": 0.232785,
      "tok_per_joule": 2.453225
     }
    },
@@ -1562,13 +1599,15 @@
     "low": {
      "value": 16000,
      "tok_s_user": 4039.530656,
-     "usd_per_mtok": 0.302834,
+     "speedup": 2.380438,
+     "usd_per_mtok": 0.303071,
      "tok_per_joule": 2.453225
     },
     "high": {
      "value": 4000,
      "tok_s_user": 4039.530656,
-     "usd_per_mtok": 0.2087,
+     "speedup": 2.380438,
+     "usd_per_mtok": 0.208937,
      "tok_per_joule": 2.453225
     }
    },
@@ -1577,13 +1616,15 @@
     "low": {
      "value": 0.8,
      "tok_s_user": 4039.530656,
+     "speedup": 2.380438,
      "usd_per_mtok": 0.240618,
      "tok_per_joule": 2.453225
     },
     "high": {
      "value": 0.3,
      "tok_s_user": 4039.530656,
-     "usd_per_mtok": 0.239769,
+     "speedup": 2.380438,
+     "usd_per_mtok": 0.240315,
      "tok_per_joule": 2.453225
     }
    },
@@ -1592,13 +1633,15 @@
     "low": {
      "value": 200.0,
      "tok_s_user": 4039.530656,
+     "speedup": 2.380438,
      "usd_per_mtok": 0.240643,
      "tok_per_joule": 2.453225
     },
     "high": {
      "value": 40.0,
      "tok_s_user": 4039.530656,
-     "usd_per_mtok": 0.239912,
+     "speedup": 2.380438,
+     "usd_per_mtok": 0.240315,
      "tok_per_joule": 2.453225
     }
    },
@@ -1607,13 +1650,15 @@
     "low": {
      "value": 6.0,
      "tok_s_user": 4039.530656,
-     "usd_per_mtok": 0.243879,
+     "speedup": 2.380438,
+     "usd_per_mtok": 0.244116,
      "tok_per_joule": 1.93101
     },
     "high": {
      "value": 3.0,
      "tok_s_user": 4039.530656,
-     "usd_per_mtok": 0.238177,
+     "speedup": 2.380438,
+     "usd_per_mtok": 0.238415,
      "tok_per_joule": 2.836813
     }
    },
@@ -1622,18 +1667,34 @@
     "low": {
      "value": 300.0,
      "tok_s_user": 4039.530656,
-     "usd_per_mtok": 0.245199,
+     "speedup": 2.380438,
+     "usd_per_mtok": 0.245437,
      "tok_per_joule": 1.798047
     },
     "high": {
      "value": 75.0,
      "tok_s_user": 4039.530656,
-     "usd_per_mtok": 0.237517,
+     "speedup": 2.380438,
+     "usd_per_mtok": 0.237755,
      "tok_per_joule": 2.999754
     }
    }
   ],
-  "gpu_measured_tok_s": 1696.969697
+  "gpu_measured_tok_s": 1696.969697,
+  "gpu_owned_cost_sweep": [
+   {
+    "purchase_usd_per_gpu": 25000,
+    "usd_per_mtok_owned": 0.535104
+   },
+   {
+    "purchase_usd_per_gpu": 45000,
+    "usd_per_mtok_owned": 0.908571
+   },
+   {
+    "purchase_usd_per_gpu": 65000,
+    "usd_per_mtok_owned": 1.282037
+   }
+  ]
  },
  "ablation": {
   "steps": [
@@ -1663,13 +1724,13 @@
    },
    {
     "step": "A2  + statically scheduled pipeline (no barriers)",
-    "tok_s_user": 3141.189456,
-    "step_ms": 1.782764,
-    "hbm_busy": 0.779544,
+    "tok_s_user": 2791.421213,
+    "step_ms": 2.006147,
+    "hbm_busy": 0.692743,
     "breakdown_ms": {
      "overhead": 0.0976,
      "collective": 0.484361,
-     "memory": 1.179777,
+     "memory": 1.403159,
      "compute": 0.021027
     }
    },
@@ -1717,13 +1778,13 @@
     "breakdown_ms": {
      "overhead": 0.0968,
      "collective": 0.142361,
-     "memory": 1.108983,
-     "compute": 0.038156
+     "memory": 0.82925,
+     "compute": 0.317889
     }
    }
   ],
   "shard_replicated_on_mda1": {
-   "tok_s_user": 3658.226761
+   "tok_s_user": 3576.104172
   },
   "calibration": {
    "hbm_eff": 0.867585
