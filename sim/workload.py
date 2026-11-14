@@ -212,7 +212,7 @@ def decode_step(s: ModelSpec, wl: DecodeWorkload) -> list[Op]:
                 d1 = distinct_experts(y.rows, k, n_exp, wl.locality)
                 d2 = distinct_experts(2 * y.rows, k, n_exp, wl.locality)
                 y.w_dyn = (d2 - d1) * eb
-            else:
+            elif y.kind != "lookup":  # weights are shared; embedding rows are per token
                 y.w_tp = y.w_rep = 0.0
             ops.extend([x, y])
         for i, o in enumerate(ops):

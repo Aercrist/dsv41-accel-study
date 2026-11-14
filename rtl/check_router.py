@@ -46,6 +46,10 @@ def main() -> None:
     print(f"router RTL vs golden: {N - bad}/{N} tokens match; latency {lat.min()}-{lat.max()} cycles "
           f"({lat.max() / 1.5:.0f} ns at 1.5 GHz)")
     (B / "router_summary.txt").write_text(f"match={N - bad}/{N}\nlatency_cycles={int(lat.max())}\n")
+    import json
+    (B.parent.parent / "results" / "router.json").write_text(json.dumps(
+        {"match": f"{N - bad}/{N}", "latency_cycles": int(lat.max()), "latency_ns_at_1p5ghz": round(lat.max() / 1.5, 1),
+         "tool": "Icarus Verilog (iverilog -g2012)", "experts": E, "top_k": K, "lanes": 8}, indent=1))
     sys.exit(1 if bad else 0)
 
 

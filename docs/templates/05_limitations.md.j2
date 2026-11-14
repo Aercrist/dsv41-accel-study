@@ -1,0 +1,59 @@
+# 05 · Limitations and assumptions
+
+**This is a modeled projection, not silicon.** MDA-1 has not been designed beyond the block level,
+synthesized (except for the router sketch), placed, timed or fabricated. Every MDA-1 number is the
+output of a Python performance model whose inputs are listed below. The GPU numbers labelled
+*measured* are quoted from the deepseek-ultrafast README; we did not run the engine or profile GPUs.
+
+## What is validated, and how far
+
+| claim | validation | strength |
+|---|---|---|
+| model shapes and bytes | parameter counts, activated params and 890 B/token KV reproduced from checkpoint headers ([01](01_workload.md#2-architecture-numbers)) | strong |
+| GPU decode step model | leave-one-out across TP4/TP8: ≤{{ [D.calibration.loo.gb300_tp4.error_pct|abs, D.calibration.loo.b300_tp8.error_pct|abs]|max|n(1) }}% with an independent bandwidth prior | moderate: 2 configurations, same software, same workload |
+| "about half the step is fixed latency" | holds ({{ K.fixed_share_min|pct }}-{{ K.fixed_share_max|pct }}) under every alternative calibration; consistent with published launch/all-reduce latencies | moderate: not confirmed by a profile (the repo ships `tools/nsys_breakdown.py`; one run would settle it) |
+| MDA-1 decode speed | bottom-up from component latencies and bandwidths; insensitive to its own latency assumptions (tornado) | **unvalidated**: no silicon, no RTL beyond the router |
+| matrix-engine utilization | SCALE-Sim cross-check (led to a 1.6x correction) | moderate (compute stage only) |
+| router latency | RTL verified in simulation, {{ RTL.match }} vs golden model | strong for function, weak for timing (not synthesized) |
+| prefill / TTFT | **not validated**: measured prefill is {{ P.prefill.fit_k_tp4|n(1) }}x slower than our model, and TP scaling is mispredicted by {{ "%+.0f"|format(P.prefill.pred_tp8_err_pct) }}% | weak; reported for completeness only |
+| cost, energy | first-order models with sourced constants where they exist | weak to moderate; see the tornado |
+
+## Every assumption
+
+Sourced constants are keyed in [sources.md](sources.md). Assumptions with no public source are
+marked **A**; those that matter are swept in the tornado ([04](04_results.md#tornado)).
+
+**Workload**
+* Batch 1, context about 2.6K (tetris prompt plus a ~5K-token answer), acceptance 5.6 tokens/step (measured mean; range 5.1-6.1 swept). Verify always runs 6 rows. The engine adapts verify length, so this slightly overstates verify work.
+* **A** Expert routing: independent across a step's 6 rows (`locality = 0`). Real routing is more local; locality 0.5 would cut bytes and favors MDA-1 (tornado). The GPU calibration argues against strong locality: it would imply bandwidth efficiency 0.59.
+* **A** Kernel counts per op (`Op.n_kernels`, about {{ W.kernels_per_step }} per step) are our reading of `model.rs`, not a trace. Only their product with κ is calibrated.
+* Engram tables: in GPU HBM on the baseline (as the engine does), in LPDDR on MDA-1. Vision tower and image tokens: not modeled.
+* Top-k: costed as streaming selection at an assumed rate (**A**); it matters only at long context.
+
+**GPU baseline**
+* Peak specs per NVIDIA/OEM pages (GB300 8 TB/s; HGX B300 7.7 TB/s, 4.5 PF FP8 dense). Calibrated: η = {{ D.calibration.hbm_eff|n(3) }}, κ = {{ D.calibration.kernel_overhead_us|n(2) }} µs.
+* All-reduce latency 5 µs (sourced, 4 x GB200), with no per-peer growth (**A**). The +0.5 µs/peer alternative is in the calibration table.
+* **A** GPU power = 60% of TDP during batch-1 decode (swept 40-100%). The GPU tokens/J is therefore an estimate.
+* **A** GPU owned cost $45K per GPU all-in (no public B300/GB300 price; swept $25-65K). Rental $9.50/GPU-hr is sourced (B300 market median; GB300 unpublished).
+* Projected GPU variants (megakernel, ideal software, Rubin) are bounds or projections, not systems that exist. The ideal-software bound assumes a 64 MB L2 staging slice (**A**; L2 size not sourced) and 1 µs per device-wide barrier (sourced lower bound).
+
+**MDA-1**
+* HBM: 8 x HBM3E 8-Hi at 8 TB/s per chip (sourced stack specs; run below their rating). η = 0.90 (**A**, set below the GPU's calibrated value and STREAM).
+* **A** Pipeline overhead 0.2 µs/op, dependent-fetch latency 0.5 µs, router 0.1 µs (RTL: 65 ns plus margin), collective 1.4 µs (= measured NVLink speed-of-light; no link advantage assumed). Swept: speedup stays {{ K.spd_min|x(2) }}-{{ K.spd_max|x(2) }}.
+* **A** Compute 2 PF FP8 / 4 PF FP4 at 1.5 GHz; matrix efficiency 0.5 (SCALE-Sim-corrected); 16-row engine.
+* **A** SRAM 256 MiB at 0.5 mm²/MiB (sourced density x2 periphery factor); FP8 MAC 80 µm² (not sourced); SerDes 0.7 mm²/lane (not sourced); HBM PHY 12 mm² (unverified GUC figure); 7 mm shoreline per HBM PHY.
+* Energy: HBM 4.0 pJ/bit (HBM2 figure; HBM3E not public); SRAM 0.5 pJ/bit (**A**, 2.3x the 7 nm 1 MB figure); link 5 pJ/bit; MAC energies from 7 nm tables x2 (**A**); static 150 W/chip (**A**, swept 75-300 W).
+* Cost: wafer $17K, D0 0.10, HBM $15/GB, CoWoS-L ~$2.1K + test, all sourced. NRE $300M (**A** within sourced $280-542M), volume 20K chips (**A**, swept 5-100K), system share $8K/chip (**A**), 4-year life, $0.0862/kWh, PUE 1.44.
+* The NoC is not simulated at flit level, and the HBM is not simulated at bank/row level (efficiency factor only). There is no thermal/power-delivery model, no DRAM refresh, and no ECC/RAS overhead.
+
+**Not modeled at all**: request scheduling and queueing across users; prefix-cache hit rates; KV
+eviction and the SSD tier; vision; reasoning-effort effects on output length; failures. The
+compiler that MDA-1's static schedule depends on is out of scope, and it is the largest
+engineering risk.
+
+## What would change the conclusion
+
+* **A profile showing the GPU step is mostly HBM-bound** (fixed share well under 40%). The latency diagnosis, and with it most of the ASIC's speed case, would weaken. One `nsys` run with the repo's `tools/nsys_breakdown.py` would settle it.
+* **GPU software reaching the ideal-software bound** ({{ C.gpu_ideal_tp4.tok_s_user|n }} tok/s/user). MDA-1's 4-chip speed edge would then shrink to {{ K.asic_vs_ideal|x(2) }}. Its scaling, energy and cost case would remain.
+* **Production volume below about {{ D.comparison.breakeven_volume['gpu_ideal_tp4@nre300M']|n }} chips** ($300M NRE) or {{ D.comparison.breakeven_volume['gpu_ideal_tp4@nre600M']|n }} ($600M NRE). Below that, MDA-1 costs more per token than an ideal-software GPU owned at $45K/GPU.
+* **Strongly local expert routing.** It would help both platforms, and our calibration would be off. Real V4.1 routing traces would resolve it.
