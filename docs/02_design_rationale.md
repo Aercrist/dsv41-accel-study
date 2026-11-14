@@ -31,13 +31,13 @@ puts the GPU on an owned basis. The SRAM-only and wafer-scale rows are idealized
 ### FPGA (AMD Alveo V80 / Versal HBM class)
 
 * **Capacity forces 16 cards.** Each V80 has 32 GB of HBM2e at 819 GB/s, so ~300 GB of weights needs ≥10 cards (16 for power-of-two sharding). The aggregate bandwidth (13 TB/s) is less than half of 4 x GB300 (32 TB/s).
-* **Compute is thin.** The DSP58 fabric gives ~35 TFLOP/s-equivalent of FP8 per card, so the drafter and the 6-row verify GEMVs become partly compute-bound (see `fig_step_breakdown` data in `results/decode.json`).
+* **Compute is thin.** The DSP58 fabric gives ~35 TFLOP/s-equivalent of FP8 per card, so the drafter and the 6-row verify GEMVs become partly compute-bound (0.92 ms of compute on the critical path; `results/decode.json`).
 * **Result: 1,179 tok/s/user, below the GPU baseline**, at 0.48 tok/J.
 * **What FPGA is good for here:** a zero-NRE prototype of the *control* ideas: the static schedule, the hardware router, prefetch and collectives. It can de-risk the ASIC's architecture. It is not a deployment vehicle for a 550B model.
 
 ### SRAM-only dataflow (Groq-class) and wafer-scale (Cerebras-class)
 
-* **Capacity sets chip count, not bandwidth.** 307 GB of FP4/FP8 weights needs 1,518 230 MB chips or 8 44 GB wafers per model replica, at 281 kW and 184 kW.
+* **Capacity sets chip count, not bandwidth.** 307 GB of FP4/FP8 weights needs 1,518 chips of 230 MB or 8 wafers of 44 GB per model replica, at 281 kW and 184 kW.
 * **Batch-1 per-user speed can be very high,** because SRAM bandwidth is effectively unlimited (an idealized 9,462 and 7,813 tok/s/user).
 * **Energy per token at low batch is 12-15x worse than the GPU.** These systems recover only by pipelining hundreds of concurrent requests through the layer groups.
 * **They are also exposed to model churn.** A 1.5k-chip replica is laid out for one model's size.

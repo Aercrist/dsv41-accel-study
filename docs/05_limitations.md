@@ -12,7 +12,7 @@ output of a Python performance model whose inputs are listed below. The GPU numb
 |---|---|---|
 | model shapes and bytes | parameter counts, activated params and 890 B/token KV reproduced from checkpoint headers ([01](01_workload.md#2-architecture-numbers)) | strong |
 | GPU decode step model | leave-one-out across TP4/TP8: ≤1.6% with an independent bandwidth prior | moderate: 2 configurations, same software, same workload |
-| "about half the step is fixed latency" | holds (46%-58%) under every alternative calibration; consistent with published launch/all-reduce latencies | moderate: not confirmed by a profile (the repo ships `tools/nsys_breakdown.py`; one run would settle it) |
+| "about half the step is fixed latency" | holds (46%-58%) under every alternative calibration; consistent with published launch/all-reduce latencies | moderate: not confirmed by a profile. `tools/model_vs_nsys.py` prints our prediction in the groups of the engine's `tools/nsys_breakdown.py`; one run would settle it |
 | MDA-1 decode speed | bottom-up from component latencies and bandwidths; insensitive to its own latency assumptions (tornado) | **unvalidated**: no silicon, no RTL beyond the router |
 | matrix-engine utilization | SCALE-Sim cross-check (led to a 1.6x correction) | moderate (compute stage only) |
 | router latency | RTL verified in simulation, 256/256 vs golden model | strong for function, weak for timing (not synthesized) |

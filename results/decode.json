@@ -41,6 +41,63 @@
     "compute": 0.016085
    }
   },
+  "nsys_groups_tp4": [
+   {
+    "group": "MoE (gate + route + experts)",
+    "us": 1302.211262,
+    "share": 0.394609
+   },
+   {
+    "group": "all-reduce / gather",
+    "us": 647.01389,
+    "share": 0.196065
+   },
+   {
+    "group": "dense projections (tcgen05: wqkv, wq_b, wo_a, wo_b)",
+    "us": 615.902172,
+    "share": 0.186637
+   },
+   {
+    "group": "mHC side branch (dots, mix, prep)",
+    "us": 216.438176,
+    "share": 0.065587
+   },
+   {
+    "group": "indexer / top-k / compressor / rope",
+    "us": 182.10353,
+    "share": 0.055183
+   },
+   {
+    "group": "mma.sync GEMVs (drafter blocks, main_proj)",
+    "us": 134.650401,
+    "share": 0.040803
+   },
+   {
+    "group": "attention",
+    "us": 102.131005,
+    "share": 0.030949
+   },
+   {
+    "group": "verify head + sampler + accept",
+    "us": 36.153694,
+    "share": 0.010956
+   },
+   {
+    "group": "draft phase (Markov head, FP8 draft head)",
+    "us": 35.093704,
+    "share": 0.010634
+   },
+   {
+    "group": "engram",
+    "us": 25.877819,
+    "share": 0.007842
+   },
+   {
+    "group": "other",
+    "us": 2.424421,
+    "share": 0.000735
+   }
+  ],
   "hbm_busy": {
    "gb300_tp4": 0.421134,
    "b300_tp8": 0.294264
