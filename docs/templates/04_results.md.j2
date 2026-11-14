@@ -66,7 +66,7 @@ GPU software projections use the fitted η; nothing else they do depends on thes
 Model tok/s = 5.6 / step. The README's tok/s is client wall clock and implies {{ (K.meas4.decode_tok_s * K.meas4.step_ms / 1000)|n(2) }} tokens/step.
 † GPU power: 60% of TDP (*assumption*). MDA-1: bottom-up incl. NoC and power-delivery loss.
 ‡ GPU $45K all-in (*assumption*), MDA-1 at cost + $300M NRE / 20K, 4 years, $0.0862/kWh, PUE 1.44.
-A GPU prefill pool adds ${{ CM.prefill_adder.usd_per_mtok|n(3) }}/M equally to every row: {{ (CM.prefill_adder.prefill_s*1000)|n(0) }} ms of 4-GPU prefill per 4K-token agent turn, over a {{ CM.prefill_adder.output_tokens|n }}-token answer.
+A GPU prefill pool adds ${{ CM.prefill_adder.usd_per_mtok|n(3) }}/M equally to every row: {{ (CM.prefill_adder.prefill_s*1000)|n(0) }} ms of 4-GPU prefill per 4K-token agent turn (roofline model scaled to the measured 1M prefill), over a {{ CM.prefill_adder.output_tokens|n }}-token answer. Headline $/token ratios include it.
 At the $9.50/GPU-hr market rental, today's GPU baseline costs ${{ C.gpu_tp4.usd_per_mtok|n(2) }}/M.
 
 **Headlines.**
@@ -82,13 +82,14 @@ At the $9.50/GPU-hr market rental, today's GPU baseline costs ${{ C.gpu_tp4.usd_
 
 {{ K.MC.n }} joint draws over every MDA-1 constant:
 * η from 0.65 to 0.935;
-* log-uniform: dependent-fetch latency 0.2-2 µs, collective latency 0.7-3 µs, staging 16-256 MB, per-op hand-off 0.05-0.6 µs, router 0.05-0.5 µs.
+* log-uniform: dependent-fetch latency 0.17-1.5 µs, collective latency 1.4-4 µs, staging 16-256 MB;
+* hand-off and router each within a factor of 3 of the platform's base value, so neither side is favoured.
 
 | | 5th pct | median | 95th pct | joint worst corner |
 |---|---|---|---|---|
 | MDA-1 vs calibrated 4 x GB300 model | {{ K.MC.vs_gpu.p5|x(2) }} | {{ K.MC.vs_gpu.p50|x(2) }} | {{ K.MC.vs_gpu.p95|x(2) }} | {{ K.MC.worst_corner_vs_gpu|x(2) }} |
 | MDA-1 vs *measured* 1,740 tok/s | {{ K.MC.vs_gpu_measured.p5|x(2) }} | {{ K.MC.vs_gpu_measured.p50|x(2) }} | {{ K.MC.vs_gpu_measured.p95|x(2) }} | |
-| MDA-1 vs dataflow-style GPU software (shared physics drawn once; hand-off 0.3-1.5 µs and router 0.2-2 µs drawn for the GPU) | {{ K.MC.vs_sw.p5|x(2) }} | {{ K.MC.vs_sw.p50|x(2) }} | {{ K.MC.vs_sw.p95|x(2) }} | |
+| MDA-1 vs dataflow-style GPU software (shared physics drawn once per sample) | {{ K.MC.vs_sw.p5|x(2) }} | {{ K.MC.vs_sw.p50|x(2) }} | {{ K.MC.vs_sw.p95|x(2) }} | |
 
 <a id="cost"></a>
 
@@ -128,9 +129,11 @@ Break-even volume against GPUs owned at $45K:
 | {{ s.id }} {{ s.step }} | {{ s.kind }} | {{ s.tok_s_user|n }} | {{ s.hbm_busy|pct }} |
 {% endfor %}
 
-Every step before A6 runs on the GPUs Baseten already has. Removing per-stage completion latency
-(A1→A3) and cross-layer prefetch (A3→A4) carry the gain. The silicon step adds
-{{ "%+.0f"|format((K.abl_by.A6.tok_s_user/K.abl_by.A5.tok_s_user-1)*100) }}% at 4 chips.
+Every step before A5 runs on the GPUs Baseten already has. The persistent program (A1→A2) is the
+largest and least certain step: it assumes a stage hand-off can drop from the fitted
+{{ cal.kernel_overhead_us|n(1) }} µs to ~1 µs, which the fit cannot confirm because κ lumps launch residue, ramp,
+tail and grid-wide completion together. Flags (A2→A3) and cross-layer prefetch (A3→A4) follow.
+The silicon step adds {{ sp(K.abl_by.A5.tok_s_user/K.abl_by.A4.tok_s_user - 1) }} at 4 chips.
 
 <a id="strong-scaling"></a>
 
@@ -145,9 +148,8 @@ Every step before A6 runs on the GPUs Baseten already has. Removing per-stage co
 {% endfor %}
 
 Every platform gets +0.1 µs of all-reduce latency per extra peer. MDA-1 beyond 4 packages assumes a
-switched fabric that is not designed here. Per-stage fixed latency caps strong scaling: today's
-overheads flatten at about 2,000 tok/s/user. The shorter on-chip hand-off gives MDA-1
-+{{ ((K.asic16/K.sw16-1)*100)|n(0) }}% over the same-physics GPU software at 16 chips.
+switched fabric that is not designed here, so its 8- and 16-chip points are illustrative only.
+Per-stage fixed latency caps strong scaling: today's overheads flatten at about 2,000-2,300 tok/s/user.
 
 <a id="batch"></a>
 
@@ -197,7 +199,8 @@ context-proportional term, and the engine runs it replicated on every rank.
 
 Rubin power is assumed (1.8 kW; not in sources); its bandwidth is NVIDIA's NVL72 figure (the HGX
 page says 22 TB/s). HBM4 is priced at the 2027 forecast ($32/GB). With today's per-stage latency,
-Rubin's {{ K.rubin_bw_ratio|n(1) }}x bandwidth buys +{{ (K.rubin_vs_gb300*100)|n(0) }}%. With the dataflow execution model it buys {{ K.rubin_df_vs_gb300|x }}.
+Rubin's {{ K.rubin_bw_ratio|n(1) }}x bandwidth buys +{{ (K.rubin_vs_gb300*100)|n(0) }}%. With dataflow-style software on both
+platforms it buys {{ K.rubin_df_vs_df|x(2) }}, and on Rubin the software change alone is worth {{ K.rubin_df_vs_rubin|x(2) }}.
 
 ## SRAM / staging buffer
 

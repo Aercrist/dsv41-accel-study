@@ -85,17 +85,26 @@ class ModelSpec:
         return sum(self.wbytes(f"{p}.{w}") for w in ("w1", "w2", "w3"))
 
     def expert_layout_factor(self, tp: int) -> float:
-        """In-memory / on-disk bytes for one expert shard in deepseek-ultrafast's `sgl` layout
-        (crates/model/src/packing.rs::sgl_expert_bytes, default on sm_103): the per-rank
-        intermediate width is padded to a multiple of 128 (w13) and 64 (w2 rows), with one
-        512 B scale tile per 128x128. TP4: 576 -> 640 (+7.6%); TP8: 288 -> 384 (+26%)."""
+        """Bytes the engine actually streams for one routed-expert shard / on-disk shard bytes.
+
+        deepseek-ultrafast's `sgl` layout (default on sm_103) pads each rank's slice, but the
+        routed-expert tensor maps (model.rs::sgl_init) read w13 over only `2*inter` rows and w2
+        rows of `ceil64(inter)/2` bytes, the rest being out-of-bounds fill. So only w2's row
+        padding is streamed: TP4 576 -> 576 (+0%), TP8 288 -> 320 on w2 (about +3.5% overall)."""
         if tp <= 0:
             return 1.0
         dim, inter = self.dim, self.moe_inter_dim // tp
-        pad = -(-inter // 128) * 128
-        w13 = 2 * pad * dim // 2 + (2 * pad // 128) * (dim // 128) * 512
-        w2 = dim * (-(-inter // 64) * 64) // 2 + (dim // 128) * (pad // 128) * 512
-        return (w13 + w2) / (self.expert_bytes / tp)
+        w = 2 * inter * dim // 2 + dim * (-(-inter // 64) * 64) // 2
+        scales = 3 * dim * inter / 32  # E8M0 per 32, as on disk
+        return (w + scales) / (self.expert_bytes / tp)
+
+    def shared_layout_factor(self, tp: int) -> float:
+        """The shared expert's FP8 copy is read over the padded width (tensor maps span 2*pad
+        and pad): TP4 576 -> 640 (+11%), TP8 288 -> 384 (+33%) of its bytes."""
+        if tp <= 0:
+            return 1.0
+        inter = self.moe_inter_dim // tp
+        return (-(-inter // 128) * 128) / inter
 
     @cached_property
     def mtp_expert_bytes(self) -> float:

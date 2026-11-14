@@ -184,7 +184,8 @@ def _block(s: ModelSpec, wl: DecodeWorkload, phase: str, l: int, rows: int, mtp:
                   n_kernels=1, category="router", out_w=n_exp * 2))
     inter = s.moe_inter_dim
     pad = s.expert_layout_factor(wl.layout_tp) if (not mtp or wl.layout_tp == 8) else 1.0
-    ops.append(Op("shared_expert", phase, l, "moe", w_tp=s.shared_expert_bytes * pad, rows=rows,
+    spad = s.shared_layout_factor(wl.layout_tp) if (not mtp or wl.layout_tp == 8) else 1.0
+    ops.append(Op("shared_expert", phase, l, "moe", w_tp=s.shared_expert_bytes * spad, rows=rows,
                   flops={"fp8": 2.0 * rows * 3 * D * inter}, n_kernels=0, category="moe_shared"))
     d = distinct_experts(rows, k, n_exp, wl.locality)
     eb = s.mtp_expert_bytes if mtp else s.expert_bytes

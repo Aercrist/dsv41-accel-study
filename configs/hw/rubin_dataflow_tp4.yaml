@@ -6,4 +6,4 @@ stage_bytes: 64.0e6
 op_overhead: 0.5e-6
 router_latency: 0.5e-6
 hbm_latency: 0.5e-6
-coll_latency: 1.4e-6
+coll_latency: 2.37e-6

@@ -4,119 +4,119 @@
    {
     "config": "gb300_tp4",
     "mfu": 0.3,
-    "model_s": 3.440065,
+    "model_s": 3.456675,
     "measured_s": 13.2,
     "parts_s": {
-     "weights": 0.743163,
+     "weights": 0.686948,
      "compute": 2.512917,
      "topk": 0.093767,
      "coll": 0.694509,
-     "ovh": 0.127887
+     "ovh": 0.145346
     },
     "pflop": 23.298806
    },
    {
     "config": "gb300_tp4",
     "mfu": 0.5,
-    "model_s": 2.434989,
+    "model_s": 2.4516,
     "measured_s": 13.2,
     "parts_s": {
-     "weights": 0.743163,
+     "weights": 0.686948,
      "compute": 1.50775,
      "topk": 0.093767,
      "coll": 0.694509,
-     "ovh": 0.127887
+     "ovh": 0.145346
     },
     "pflop": 23.298806
    },
    {
     "config": "gb300_tp4",
     "mfu": 0.7,
-    "model_s": 2.005119,
+    "model_s": 2.020853,
     "measured_s": 13.2,
     "parts_s": {
-     "weights": 0.743163,
+     "weights": 0.686948,
      "compute": 1.076964,
      "topk": 0.093767,
      "coll": 0.694509,
-     "ovh": 0.127887
+     "ovh": 0.145346
     },
     "pflop": 23.298806
    },
    {
     "config": "b300_tp8",
     "mfu": 0.3,
-    "model_s": 2.384862,
+    "model_s": 2.401878,
     "measured_s": 11.7,
     "parts_s": {
-     "weights": 0.387695,
+     "weights": 0.358368,
      "compute": 1.396065,
      "topk": 0.046884,
      "coll": 0.808302,
-     "ovh": 0.127887
+     "ovh": 0.145346
     },
     "pflop": 23.298806
    },
    {
     "config": "b300_tp8",
     "mfu": 0.5,
-    "model_s": 1.826486,
+    "model_s": 1.843502,
     "measured_s": 11.7,
     "parts_s": {
-     "weights": 0.387695,
+     "weights": 0.358368,
      "compute": 0.837639,
      "topk": 0.046884,
      "coll": 0.808302,
-     "ovh": 0.127887
+     "ovh": 0.145346
     },
     "pflop": 23.298806
    },
    {
     "config": "b300_tp8",
     "mfu": 0.7,
-    "model_s": 1.587183,
+    "model_s": 1.604199,
     "measured_s": 11.7,
     "parts_s": {
-     "weights": 0.387695,
+     "weights": 0.358368,
      "compute": 0.598314,
      "topk": 0.046884,
      "coll": 0.808302,
-     "ovh": 0.127887
+     "ovh": 0.145346
     },
     "pflop": 23.298806
    }
   ],
-  "fit_k_tp4": 5.420969,
-  "pred_tp8_s": 9.901325,
-  "pred_tp8_err_pct": -15.373288,
+  "fit_k_tp4": 5.38424,
+  "pred_tp8_s": 9.925859,
+  "pred_tp8_err_pct": -15.163602,
   "measured_tp_speedup": 1.128205,
-  "model_tp_speedup": 1.333155
+  "model_tp_speedup": 1.32986
  },
  "ttft": {
   "scenarios": [
    {
     "scenario": "short prompt (60 tokens, cold)",
-    "gpu_ttft_s": 0.056584,
-    "hybrid_ttft_s": 0.05494,
+    "gpu_ttft_s": 0.054736,
+    "hybrid_ttft_s": 0.053016,
     "kv_handoff_ms": 0.048102,
     "kv_mb": 1.40508,
-    "asic_standalone_ttft_s": 0.043703
+    "asic_standalone_ttft_s": 0.041134
    },
    {
     "scenario": "agent turn: 200K cached + 4K new",
-    "gpu_ttft_s": 0.095022,
-    "hybrid_ttft_s": 0.09345,
+    "gpu_ttft_s": 0.091877,
+    "hybrid_ttft_s": 0.090229,
     "kv_handoff_ms": 0.119942,
     "kv_mb": 4.99712,
-    "asic_standalone_ttft_s": 0.136166
+    "asic_standalone_ttft_s": 0.133883
    },
    {
     "scenario": "cold 128K prompt",
-    "gpu_ttft_s": 1.575281,
-    "hybrid_ttft_s": 1.575969,
+    "gpu_ttft_s": 1.575424,
+    "hybrid_ttft_s": 1.576036,
     "kv_handoff_ms": 2.380115,
     "kv_mb": 118.00576,
-    "asic_standalone_ttft_s": 3.188373
+    "asic_standalone_ttft_s": 3.171613
    }
   ],
   "kv_link_gb_s": 50.0
@@ -136,10 +136,10 @@
    {
     "option": "4x GB300, dataflow-style software (projected)",
     "chips": 4,
-    "tok_s_user": 3485.76588,
+    "tok_s_user": 3596.403629,
     "kw": 3.36,
-    "tok_per_joule": 1.03743,
-    "usd_per_mtok": 0.442318,
+    "tok_per_joule": 1.070358,
+    "usd_per_mtok": 0.428711,
     "hbm_or_sram_gb": 1152.0
    },
    {
@@ -154,10 +154,10 @@
    {
     "option": "MDA-1 x4 (proposed)",
     "chips": 4,
-    "tok_s_user": 3482.105775,
-    "kw": 1.816407,
-    "tok_per_joule": 1.91703,
-    "usd_per_mtok": 0.281046,
+    "tok_s_user": 3655.653634,
+    "kw": 1.872955,
+    "tok_per_joule": 1.951811,
+    "usd_per_mtok": 0.268237,
     "hbm_or_sram_gb": 768.0
    },
    {

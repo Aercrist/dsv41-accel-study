@@ -64,21 +64,22 @@ At batch 1 the graph is a chain, and the model reduces to
 
 ## Calibration
 
-Fitted on the two measured step times: η (HBM efficiency) = 0.774 and
-κ (exposed latency per dependent kernel stage) = 3.71 µs. Every
+Fitted on the two measured step times: η (HBM efficiency) = 0.838 and
+κ (exposed latency per dependent kernel stage) = 4.21 µs. Every
 other GPU constant is a published spec or a sourced prior. The as-built engine is modeled with its
 padded expert layout, fused producer-pushed all-reduces, side streams, and replicated decode indexer.
-Leave-one-out with η pinned to STREAM: +3.8% (TP8 from TP4) and
--3.1% (the reverse). This is a weak test; see [04](04_results.md#calibration)
+Leave-one-out with η pinned to STREAM: +2.3% (TP8 from TP4) and
+-1.9% (the reverse). This is a weak test; see [04](04_results.md#calibration)
 for what the data do and do not pin.
 
 ## Symmetric constants
 
 Platforms differ only in YAML constants, so a comparison is only as fair as its constants. Where the
 physics is the same, the constant is the same on every platform: HBM efficiency (calibrated),
-DRAM first-byte latency (0.5 µs) and collective latency (1.4 µs computed speed-of-light). Where a
-mechanism differs, the constant differs and the mechanism is written next to it in the YAML:
-* per-stage hand-off: GPU today κ (fitted); GPU barrier 1 µs; GPU flags 0.5 µs; MDA-1 on-chip 0.2 µs;
+DRAM first-byte latency (0.5 µs) and collective latency (2.37 µs, the best measured 4-GPU
+all-reduce; MDA-1 adds 0.2 µs for its die crossing). Where a mechanism differs, the constant
+differs and the mechanism is written next to it in the YAML:
+* per-stage hand-off: GPU today κ (fitted); GPU barrier 1 µs; GPU flags 0.5 µs; MDA-1 on-chip 0.3 µs including die crossing;
 * router: GPU 0.5 µs; MDA-1 0.1 µs (RTL).
 
 Joint uncertainty over all of them is in `monte_carlo()` (`experiments/decode_experiments.py`).
@@ -92,7 +93,7 @@ Joint uncertainty over all of them is in `monte_carlo()` (`experiments/decode_ex
 | matrix-engine utilization vs SCALE-Sim v3 | model was 1.5-1.7x optimistic; corrected |
 | router RTL vs numpy | 256/256, 98 cycles |
 | `pytest tests/` | invariants: byte conservation, batch-1 chain equivalence, monotonicity in bandwidth/latency, calibration reproduces measurements |
-| independent adversarial review | 9 classes of problems found and fixed ([05](05_limitations.md#revisions-after-adversarial-review)) |
+| independent adversarial review, two rounds | problems found and addressed ([05](05_limitations.md#revisions-after-adversarial-review)) |
 
 ## Tools we did not use
 
