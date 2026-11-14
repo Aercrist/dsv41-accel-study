@@ -1,93 +1,102 @@
 # Decode silicon for DeepSeek-V4.1-Flash
 
-**A modeled hardware-architecture study of [deepseek-ultrafast](https://github.com/basetenlabs/deepseek-ultrafast).**
-All MDA-1 and projected-GPU numbers are **simulated/projected**; numbers marked *measured* are quoted from the deepseek-ultrafast README.
+**A modeled hardware-architecture study of [deepseek-ultrafast](https://github.com/basetenlabs/deepseek-ultrafast):
+where the time goes, what a custom accelerator would buy, and how much of that software can buy first.**
+All MDA-1 and projected-GPU numbers are **simulated/projected**. Numbers marked *measured* are quoted from the deepseek-ultrafast README.
 
 > **Status:** performance-model study plus one verified RTL block. No silicon, no synthesis, no GPU profiling.
+> The claims were revised after an adversarial review ([what changed](docs/05_limitations.md#revisions-after-adversarial-review)).
 
 ## Abstract
 
-deepseek-ultrafast serves DeepSeek-V4.1-Flash, a 552B-parameter MoE with FP4 experts, one request
-at a time on 4 x GB300 ({{ K.meas4.decode_tok_s|n }} tok/s, *measured*) or 8 x B300 ({{ K.meas8.decode_tok_s|n }} tok/s, *measured*).
-We rebuilt the workload from the engine's code and the model's checkpoint headers. We then built an
-op-level performance simulator and calibrated it to the two reported step times; leave-one-out
-error is {{ [cal.loo.gb300_tp4.error_pct|abs, cal.loo.b300_tp8.error_pct|abs]|max|n(1) }}%.
+deepseek-ultrafast serves DeepSeek-V4.1-Flash, a 552B-parameter MoE with FP4 experts, one request at
+a time: {{ K.meas4.decode_tok_s|n }} tok/s on 4 x GB300 and {{ K.meas8.decode_tok_s|n }} tok/s on 8 x B300 (*measured*).
+We rebuilt the workload from the engine's Rust/CUDA source and the model's checkpoint headers. We
+then built an op-level performance simulator and calibrated it to the two reported step times.
 
-**Finding 1.** Only about {{ (1 - K.fixed4_share)|pct }} of each 3.30 ms decode step streams weights.
-The other **{{ K.fixed4_ms|n(1) }} ms ({{ K.fixed4_share|pct }})** is fixed per-layer latency: kernel
-boundaries and collectives. Over a step the GPUs average {{ pct(W.decode_per_gpu_tp4.total/1e9/K.meas4.step_ms/8.0) }} of
-peak HBM bandwidth. This is why 8 GPUs are only {{ K.tp8_gain|pct }} faster than 4, and why Rubin's 2.75x
-bandwidth would buy only about {{ K.rubin_vs_gb300|pct }} with today's per-layer overheads.
-
-**Proposal.** We propose **MDA-1**, a decode-only, statically scheduled ASIC: TSMC N4P, 8 x HBM3E at
-the *same* 8 TB/s as a B300, 2 PF FP8, 256 MiB SRAM, a hardware MoE router and in-fabric all-reduce.
-Four chips project to **{{ C.asic.tok_s_user|n }} tok/s/user ({{ K.asic_vs_meas|x }} the measured 4 x GB300)**,
-and eight chips to **{{ K.asic8|n }} ({{ K.asic8_vs_meas8|x }} the measured 8 x B300)**. The model also projects
-{{ K.tpj_ratio|x }} tokens/J and {{ K.usd_ratio_owned|x }} lower $/M tokens than the same GPUs owned. The gain comes
-almost entirely from deleting per-layer latency, not from FLOPs. Against an *ideal-software* GPU bound,
-MDA-1's lead is {{ K.asic_vs_ideal|x(2) }} at 4 chips and grows to {{ (K.asic8/K.ideal8)|x(2) }} at 8.
+1. **About half of every decode step is fixed latency, not weight streaming.** The calibrated model
+   attributes {{ K.fixed4_ms|n(2) }} ms of the 3.30 ms step ({{ K.fixed4_share|pct }}) to dependent-stage
+   and collective latency ({{ K.fixed_lo|pct }}-{{ K.fixed_hi|pct }} across every alternative calibration).
+   HBM averages {{ pct(W.decode_per_gpu_tp4.total/1e9/K.meas4.step_ms/8.0) }} of peak.
+2. **The fix is an execution model, not FLOPs.** One persistent, statically ordered program removes
+   per-stage barriers. It streams the next layers' dense weights while the current layer's experts
+   are in flight, and uses an unpadded expert layout and speed-of-light all-reduces. On the **same 4 x GB300**
+   this projects **{{ C.gpu_df_tp4.tok_s_user|n }} tok/s/user ({{ K.sw_vs_meas|x }} the measured engine)**. The
+   biggest levers are removing per-stage barriers (+{{ ((K.abl_by.A2.tok_s_user/K.abl_by.A1.tok_s_user-1)*100)|n(0) }}%) and
+   cross-layer weight prefetch (+{{ ((K.abl_by.A4.tok_s_user/K.abl_by.A3.tok_s_user-1)*100)|n(0) }}%).
+3. **Custom silicon built around that execution model matches it. It doesn't beat it.** MDA-1 is a
+   decode ASIC: 2 dies, 8 x HBM3E at GB300's 8 TB/s, 2 PF FP8, a hardware MoE router (RTL-verified)
+   and in-fabric all-reduce. It projects **{{ C.asic.tok_s_user|n }} tok/s/user**. Drawing all its
+   assumptions jointly, that is {{ K.MC.vs_gpu_measured.p5|x }}-{{ K.MC.vs_gpu_measured.p95|x }} the measured engine (5th-95th percentile), and
+   {{ K.MC.vs_sw.p5|x(2) }}-{{ K.MC.vs_sw.p95|x(2) }} the same-bandwidth GPU software. **Its case is economic:**
+   {{ K.usd_vs_sw|x }} lower $/M tokens and {{ K.tpj_vs_sw|x }} tokens/J against GPUs running the same software
+   (GPUs owned at $45K, drawing 60% of TDP). Across $25-65K per GPU and 40-100% of TDP those ratios span
+   {{ K.usd_vs_sw_lo|x }}-{{ K.usd_vs_sw_hi|x }} and {{ K.tpj_vs_sw_lo|x }}-{{ K.tpj_vs_sw_hi|x }}. Break-even is about {{ K.be_sw_300|n(-3) }} chips at $300M NRE.
+4. **Bandwidth alone won't fix it.** Rubin (19.2 TB/s) with today's per-stage latency projects only
+   +{{ (K.rubin_vs_gb300*100)|n(0) }}% over GB300. With the dataflow execution model it projects {{ C.rubin_df_tp4.tok_s_user|n }} tok/s/user ({{ K.rubin_df_vs_gb300|x }}).
 
 ![Where a decode step goes](results/fig_step_breakdown.png)
 
-![Strong scaling](results/fig_strong_scaling.png)
+![Ablation: software vs silicon](results/fig_ablation.png)
 
-## Key results (simulated, batch 1, 4 chips at 8 TB/s HBM each unless noted)
+## Key results (batch 1, 4 chips; simulated unless marked)
 
-| | tok/s/user | tokens/J | $/M tok (owned) |
+| platform | tok/s/user | tokens/J † | $/M tok, owned ‡ |
 |---|---|---|---|
-| 4 x GB300, deepseek-ultrafast (*measured* {{ K.meas4.decode_tok_s|n }}; model {{ C.gpu_tp4.tok_s_user|n }}) | {{ C.gpu_tp4.tok_s_user|n }} | {{ C.gpu_tp4.tok_per_joule|n(2) }} | {{ C.gpu_tp4.usd_per_mtok_owned|n(2) }} |
-| 4 x GB300, fused megakernel (projected) | {{ C.gpu_mk_tp4.tok_s_user|n }} | {{ C.gpu_mk_tp4.tok_per_joule|n(2) }} | {{ C.gpu_mk_tp4.usd_per_mtok_owned|n(2) }} |
-| 4 x GB300, ideal software (bound) | {{ C.gpu_ideal_tp4.tok_s_user|n }} | {{ C.gpu_ideal_tp4.tok_per_joule|n(2) }} | {{ C.gpu_ideal_tp4.usd_per_mtok_owned|n(2) }} |
-| 16 x Alveo V80 FPGA | {{ C.fpga.tok_s_user|n }} | {{ C.fpga.tok_per_joule|n(2) }} | {{ C.fpga.usd_per_mtok|n(2) }} |
-| **4 x MDA-1 (proposed)** | **{{ C.asic.tok_s_user|n }}** | **{{ C.asic.tok_per_joule|n(2) }}** | **{{ C.asic.usd_per_mtok|n(2) }}** |
-| 4 x MDA-1 HBM4 vs 4 x Rubin (projected) | {{ C.asic_hbm4.tok_s_user|n }} vs {{ C.rubin_tp4.tok_s_user|n }} | {{ C.asic_hbm4.tok_per_joule|n(2) }} vs {{ C.rubin_tp4.tok_per_joule|n(2) }} | |
+| 4 x GB300, deepseek-ultrafast: *measured* {{ K.meas4.decode_tok_s|n }}; calibrated model | {{ C.gpu_tp4.tok_s_user|n }} | {{ C.gpu_tp4.tok_per_joule|n(2) }} | {{ C.gpu_tp4.usd_per_mtok_owned|n(2) }} |
+| 4 x GB300, barrier-synced persistent kernel (projected) | {{ C.gpu_mk_tp4.tok_s_user|n }} | {{ C.gpu_mk_tp4.tok_per_joule|n(2) }} | {{ C.gpu_mk_tp4.usd_per_mtok_owned|n(2) }} |
+| **4 x GB300, dataflow-style software (projected)** | **{{ C.gpu_df_tp4.tok_s_user|n }}** | {{ C.gpu_df_tp4.tok_per_joule|n(2) }} | {{ C.gpu_df_tp4.usd_per_mtok_owned|n(2) }} |
+| 16 x Alveo V80 FPGA | {{ C.fpga.tok_s_user|n }} | {{ C.fpga.tok_per_joule|n(2) }} | {{ C.fpga.usd_per_mtok_owned|n(2) }} |
+| **4 x MDA-1 (proposed)** | **{{ C.asic.tok_s_user|n }}** | **{{ C.asic.tok_per_joule|n(2) }}** | **{{ C.asic.usd_per_mtok_owned|n(2) }}** |
+| 4 x Rubin, today's software / dataflow software (projected) | {{ C.rubin_tp4.tok_s_user|n }} / {{ C.rubin_df_tp4.tok_s_user|n }} | {{ C.rubin_tp4.tok_per_joule|n(2) }} / {{ C.rubin_df_tp4.tok_per_joule|n(2) }} | |
+| 4 x MDA-1 with HBM4 at Rubin's bandwidth (projected) | {{ C.asic_hbm4.tok_s_user|n }} | {{ C.asic_hbm4.tok_per_joule|n(2) }} | {{ C.asic_hbm4.usd_per_mtok_owned|n(2) }} |
 
-Robustness: across every MDA-1 uncertainty in the tornado (HBM efficiency, latencies, buffer size,
-router), the speedup over the calibrated GPU stays between **{{ K.spd_min|x(2) }} and {{ K.spd_max|x(2) }}**.
-$/token is dominated by NRE and volume. Break-even against an ideal-software GPU owned at $45K/GPU is
-about {{ D.comparison.breakeven_volume['gpu_ideal_tp4@nre300M']|n }} chips at $300M NRE.
-GPU purchase price and power are assumptions; see [limitations](docs/05_limitations.md).
+† GPU power is an *assumption* (60% of TDP); MDA-1 power is bottom-up. ‡ GPUs at an *assumed* $45K all-in
+(no public B300 price); MDA-1 at manufacturing cost plus $300M NRE over 20K chips; 4-year life. A GPU
+prefill pool adds ${{ D.comparison.prefill_adder.usd_per_mtok|n(3) }}/M to every row equally. At the $9.50/GPU-hr market rental the GPU baseline is
+${{ C.gpu_tp4.usd_per_mtok|n(2) }}/M.
 
 ## Method
 
-1. **Workload from code** ([docs/01](docs/01_workload.md)): engine kernels, TP layout and DSpark speculation read from the Rust/CUDA source; shapes and on-disk bytes from the 48 safetensors headers. The model description reproduces the tech report's 552B / 196B / 16B / 8B parameters and 890 B/token KV exactly.
-2. **Simulator** ([docs/06](docs/06_simulator.md)): an op-level event-driven scheduler over compute, chunked prioritized HBM and links, with two policies: GPU kernels, and statically scheduled dataflow with a prefetch window.
-3. **Calibration**: 2 free GPU parameters fitted to 2 measured step times; leave-one-out with an independent STREAM bandwidth prior; refits under 5 alternative assumptions.
-4. **Design + trade study** ([02](docs/02_design_rationale.md), [03](docs/03_architecture.md)): FPGA, SRAM-only, wafer-scale, GPU software and ASIC options run on the same simulator. The MoE router is written in SystemVerilog and verified against a golden model ({{ RTL.match }}, {{ RTL.latency_cycles }} cycles). The matrix engine is cross-checked with SCALE-Sim v3, which corrected our model by 1.6x.
-5. **Experiments** ([04](docs/04_results.md)): baseline vs proposed; sweeps over chips, batch, context, HBM bandwidth and SRAM; an expert-cache study (LRU/LFU/Belady); a tornado; and a 7-step ablation.
+1. **Workload from code** ([docs/01](docs/01_workload.md)). Engine kernels, TP layout, padded expert layout, fusions and DSpark speculation are read from the Rust/CUDA source. Shapes and bytes come from the 48 safetensors headers, which reproduce the tech report's 552B / 196B / 16B / 8B parameters and 890 B/token KV.
+2. **Simulator** ([docs/06](docs/06_simulator.md)). An op-level, event-driven scheduler over compute, chunked prioritized HBM and links, with two policies: GPU kernels, and a statically scheduled dataflow with a prefetch window. Platforms differ only in constants. Same-physics constants are set equal across platforms (HBM efficiency, DRAM first-byte latency, collective speed-of-light).
+3. **Calibration.** 2 free GPU parameters fitted to 2 measured step times, refit under 10 alternative assumptions, including the README's run-to-run extremes. Leave-one-out: {{ "%+.1f"|format(cal.loo.b300_tp8.error_pct) }}% / {{ "%+.1f"|format(cal.loo.gb300_tp4.error_pct) }}% with an independent STREAM bandwidth prior. That is a weak test, and we say so.
+4. **Design and trade study** ([02](docs/02_design_rationale.md), [03](docs/03_architecture.md)). GPU software, FPGA, SRAM-only, wafer-scale and ASIC options run on one simulator. The MoE router is SystemVerilog, verified against a golden model ({{ RTL.match }}, {{ RTL.latency_cycles }} cycles). The matrix engine is cross-checked with SCALE-Sim v3, which corrected our model by 1.6x.
+5. **Experiments** ([04](docs/04_results.md)). Baseline vs proposed vs software; joint Monte Carlo; sweeps over chips, batch, context, HBM bandwidth and SRAM; an expert-cache study (LRU/LFU/Belady); a tornado; and an ablation that separates software steps from silicon.
 
 ## Reproduce
 
 ```bash
 pip install -r requirements.txt     # numpy, scipy, pyyaml, matplotlib, jinja2, pytest (+ scalesim)
-make reproduce                      # all experiments -> results/, renders README + docs from results (~1 min)
+make reproduce                      # all experiments -> results/, renders README + docs from results (~1-2 min)
 make test                           # invariants + calibration checks
-make rtl                            # optional: router RTL vs golden model (needs iverilog)
+make rtl                            # router RTL vs golden model (needs iverilog; run by reproduce if present)
+python3 -m tools.model_vs_nsys      # our per-kernel-group prediction, to compare with one nsys profile
 ```
 
-Every number in this README and in `docs/` is rendered from `results/*.json` by
+Every number in this README, `docs/` and `POST.md` is rendered from `results/*.json` by
 `experiments/render_docs.py`. Edit `docs/templates/`, not the generated files.
 
 ## Limitations (short version)
 
-Modeled projection, not silicon. The GPU model is calibrated on two points from one engine and one
-prompt. MDA-1's latencies and energies are bottom-up assumptions (sourced where possible, swept where
-not). Prefill is **not** calibrated: the measured prefill is {{ P.prefill.fit_k_tp4|n(1) }}x slower than our model. GPU power,
-GPU purchase price, MAC area and NRE are assumptions. One `nsys` profile of deepseek-ultrafast would
-confirm or refute the fixed-latency diagnosis: `python3 -m tools.model_vs_nsys` prints our per-group prediction in the
-exact groups of the engine's own `tools/nsys_breakdown.py`. Full list: [docs/05_limitations.md](docs/05_limitations.md).
+This is a modeled projection, not silicon. The GPU model is calibrated on two points from one engine
+and one prompt. The fixed-latency share is a range, not a measurement. One `nsys` profile would
+confirm or refute it. MDA-1's constants are bottom-up assumptions, sourced where possible and swept
+jointly. Prefill is **not** calibrated: the measured prefill is {{ P.prefill.fit_k_tp4|n(1) }}x slower than our model.
+GPU power and purchase price, MAC and SerDes area, NRE and volume are assumptions. Full list:
+[docs/05_limitations.md](docs/05_limitations.md).
 
 ## Layout
 
 ```
 data/        HF config, checkpoint manifest (from safetensors headers), reported baseline numbers
-configs/hw/  GPU / ASIC / FPGA descriptions; every constant keyed to docs/sources.md
+configs/hw/  GPU / GPU-software projections / ASIC / FPGA descriptions; every constant keyed to docs/sources.md
 sim/         simulator (see docs/06)
 experiments/ one script per study; run_all.py drives them
 results/     generated JSON + figures
 rtl/         MoE top-k router + testbench
 docs/        01 workload · 02 rationale · 03 architecture · 04 results · 05 limitations · 06 simulator · sources
-tools/       fetch_checkpoint_manifest.py (network; regenerates the manifest), model_vs_nsys.py (profile comparison)
+tools/       fetch_checkpoint_manifest.py (network), model_vs_nsys.py (profile comparison)
 POST.md      draft thread and note to the Baseten team
 ```
 

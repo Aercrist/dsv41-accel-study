@@ -76,6 +76,9 @@ class DecodeWorkload:
     # attention/compute overlaps the other's expert streaming (DeepSeek-style two-batch
     # overlap). None = 2 when batch >= 2, else 1. Weights are fetched once and shared.
     microbatches: int | None = None
+    # 0: stream on-disk expert bytes. N: deepseek-ultrafast's padded in-memory layout at TP N
+    # (sgl layout; drafter experts use it only at TP8, `ops::sgl_mtp_on`).
+    layout_tp: int = 0
 
     @property
     def rv(self) -> int:
@@ -115,7 +118,7 @@ def _block(s: ModelSpec, wl: DecodeWorkload, phase: str, l: int, rows: int, mtp:
         ops.append(_gemv("engram_wkv", phase, l, n_cols * s.engram_head_dim, D * (s.hc_mult + 1), rows, "fp8",
                          w_tp=s.wbytes("layers.*.engram.wkv"), kernels=2, cat="engram"))
 
-    ops.append(Op("hc_attn", phase, l, "vector", w_rep=hc_b, rows=rows, flops_rep={"fp32": hc_f + sink}, n_kernels=1, category="mhc",
+    ops.append(Op("hc_attn", phase, l, "vector", w_rep=hc_b, rows=rows, flops_rep={"fp32": hc_f + sink}, n_kernels=0, category="mhc",
                   out_w=(2 + s.hc_mult) * s.hc_mult * 2))
     op = _gemv("wqkv", phase, l, D, s.q_lora_rank + s.head_dim, rows, "fp8", w_rep=ab["wq_a"] + ab["wkv"], cat="attn_proj")
     op.out_w = s.q_lora_rank + s.head_dim
@@ -135,7 +138,7 @@ def _block(s: ModelSpec, wl: DecodeWorkload, phase: str, l: int, rows: int, mtp:
         cb = s.tensors["layers.*.attn.compressor.wkv.weight"].bytes_each * (2 if r > 1 else 1)
         cb += s.tensors["layers.*.attn.indexer.wk.weight"].bytes_each
         f = 2.0 * rows * D * s.head_dim * (2 if r > 1 else 1) + 2.0 * rows * s.head_dim * s.index_head_dim
-        ops.append(Op("compressor", phase, l, "gemv", w_rep=cb, rows=rows, flops_rep={"bf16": f}, n_kernels=2, category="indexer",
+        ops.append(Op("compressor", phase, l, "gemv", w_rep=cb, rows=rows, flops_rep={"bf16": f}, n_kernels=0, category="indexer",
                       out_w=s.head_dim * (2 if r > 1 else 1) + s.index_head_dim))
 
     if is_index:
@@ -143,16 +146,18 @@ def _block(s: ModelSpec, wl: DecodeWorkload, phase: str, l: int, rows: int, mtp:
         e_idx = s.kv_entry_bytes["index"]
         wp = s.tensors["layers.*.attn.indexer.weights_proj.weight"].bytes_each
         ops.append(Op("idx_weights", phase, l, "gemv", w_rep=wp, rows=rows, flops_rep={"bf16": 2.0 * rows * D * s.index_n_heads},
-                      n_kernels=1, category="indexer", out_w=s.index_n_heads))
+                      n_kernels=0, category="indexer", out_w=s.index_n_heads))
         # scores: every query row against the shared index K; rows of one sequence share the K read
-        ops.append(Op("idx_score", phase, l, "indexer", kv_tp=wl.batch * n_scan * e_idx, rows=rows,
-                      flops={"fp4": 2.0 * rows * nq_i * n_scan, "fp32": 2.0 * rows * s.index_n_heads * n_scan},
+        # decode (<= 16 rows) runs the scan and top-k replicated on every rank (model.rs::idx_rows
+        # returns None), so there is no gather; the scan bytes are per chip
+        ops.append(Op("idx_score", phase, l, "indexer", kv_rep=wl.batch * n_scan * e_idx, rows=rows,
+                      flops_rep={"fp4": 2.0 * rows * nq_i * n_scan, "fp32": 2.0 * rows * s.index_n_heads * n_scan},
                       n_kernels=2, category="indexer"))
         topk_elems = rows * n_scan
         if l == s.candidate_source_layer:
             topk_elems += rows * n_scan / s.candidate_block_size
-        ops.append(Op("idx_topk", phase, l, "topk", rows=rows, flops={"fp32": 4.0 * topk_elems},
-                      gather=rows * s.index_topk * 8.0, n_kernels=3, category="indexer"))
+        ops.append(Op("idx_topk", phase, l, "topk", rows=rows, flops_rep={"fp32": 4.0 * topk_elems},
+                      n_kernels=2, category="indexer"))
 
     n_att = s.window_size + (0 if role == "swa" else min(s.index_topk, ctx // max(1, s.compress_ratios[l])))
     if mtp:
@@ -166,9 +171,11 @@ def _block(s: ModelSpec, wl: DecodeWorkload, phase: str, l: int, rows: int, mtp:
     ops.append(_gemv("wo_a", phase, l, s.n_heads * s.head_dim // s.o_groups, s.o_lora_rank * s.o_groups, rows, "fp8",
                      w_tp=ab["wo_a"], cat="attn_proj"))
     ops.append(_gemv("wo_b", phase, l, s.o_groups * s.o_lora_rank, D, rows, "fp8", w_tp=ab["wo_b"], cat="attn_proj"))
-    ops.append(Op("ar_attn", phase, l, "collective", coll=rows * D * A, rows=rows, n_kernels=1, category="collective"))
+    # all-reduces are pushed from the producer kernel and fused with the mHC post/next-layer prep
+    # (NVLS multimem + Lamport buffers: comm_dec_attn_pp, comm_lp_sgl): latency, no extra kernel
+    ops.append(Op("ar_attn", phase, l, "collective", coll=rows * D * A, rows=rows, n_kernels=0, category="collective"))
 
-    ops.append(Op("hc_ffn", phase, l, "vector", w_rep=hc_b, rows=rows, flops_rep={"fp32": hc_f + sink}, n_kernels=1, category="mhc",
+    ops.append(Op("hc_ffn", phase, l, "vector", w_rep=hc_b, rows=rows, flops_rep={"fp32": hc_f + sink}, n_kernels=0, category="mhc",
                   out_w=(2 + s.hc_mult) * s.hc_mult * 2))
     n_exp = s.dspark_n_routed_experts if mtp else s.n_routed_experts
     k = s.dspark_n_activated_experts if mtp else s.n_activated_experts
@@ -176,13 +183,14 @@ def _block(s: ModelSpec, wl: DecodeWorkload, phase: str, l: int, rows: int, mtp:
     ops.append(Op("gate", phase, l, "router", w_rep=gb, rows=rows, flops_rep={"bf16": 2.0 * rows * D * n_exp, "fp32": 8.0 * rows * n_exp},
                   n_kernels=1, category="router", out_w=n_exp * 2))
     inter = s.moe_inter_dim
-    ops.append(Op("shared_expert", phase, l, "moe", w_tp=s.shared_expert_bytes, rows=rows,
+    pad = s.expert_layout_factor(wl.layout_tp) if (not mtp or wl.layout_tp == 8) else 1.0
+    ops.append(Op("shared_expert", phase, l, "moe", w_tp=s.shared_expert_bytes * pad, rows=rows,
                   flops={"fp8": 2.0 * rows * 3 * D * inter}, n_kernels=0, category="moe_shared"))
     d = distinct_experts(rows, k, n_exp, wl.locality)
     eb = s.mtp_expert_bytes if mtp else s.expert_bytes
-    ops.append(Op("routed_experts", phase, l, "moe", w_dyn=d * eb, rows=rows, rows_eff=rows * k / d,
+    ops.append(Op("routed_experts", phase, l, "moe", w_dyn=d * eb * pad, rows=rows, rows_eff=rows * k / d,
                   flops={"fp4": 2.0 * rows * k * 3 * D * inter}, n_kernels=2, category="moe_routed"))
-    ops.append(Op("ar_ffn", phase, l, "collective", coll=rows * D * A, rows=rows, n_kernels=1, category="collective"))
+    ops.append(Op("ar_ffn", phase, l, "collective", coll=rows * D * A, rows=rows, n_kernels=0, category="collective"))
     return ops
 
 
@@ -211,7 +219,8 @@ def decode_step(s: ModelSpec, wl: DecodeWorkload) -> list[Op]:
                 eb = s.mtp_expert_bytes if y.phase == "draft" else s.expert_bytes
                 d1 = distinct_experts(y.rows, k, n_exp, wl.locality)
                 d2 = distinct_experts(2 * y.rows, k, n_exp, wl.locality)
-                y.w_dyn = (d2 - d1) * eb
+                pad = s.expert_layout_factor(wl.layout_tp) if (y.phase != "draft" or wl.layout_tp == 8) else 1.0
+                y.w_dyn = (d2 - d1) * eb * pad
             elif y.kind != "lookup":  # weights are shared; embedding rows are per token
                 y.w_tp = y.w_rep = 0.0
             ops.extend([x, y])
@@ -235,7 +244,8 @@ def _step_ops(s: ModelSpec, wl: DecodeWorkload) -> list[Op]:
     rv, rd, B = wl.rv, wl.rd, wl.batch
     # ---- draft ---------------------------------------------------------------------------
     mp = s.wbytes("mtp.*.main_proj")
-    ops.append(_gemv("main_proj", "draft", -1, D * len(s.dspark_target_layer_ids), D, B, "fp8", w_tp=mp, kernels=3, cat="draft"))
+    # main_proj runs on a side stream during the previous verify (model.rs prep_proj): no boundary
+    ops.append(_gemv("main_proj", "draft", -1, D * len(s.dspark_target_layer_ids), D, B, "fp8", w_tp=mp, kernels=0, cat="draft"))
     for i in range(s.n_mtp_layers):
         for op in _block(s, wl, "draft", s.n_layers + i, rd, mtp=True):
             ops.append(op)

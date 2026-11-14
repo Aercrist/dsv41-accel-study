@@ -50,8 +50,11 @@ def step_energy(ops: list[Op], res: StepResult, hw: Hardware, tokens_per_step: f
         "compute": sum(flops[k] * p["pj_per_flop"][k] for k in flops) * pj,
         "links": coll_bits * p["link_pj_per_bit"] * pj,
         "host_dram": host_bits * p.get("lpddr_pj_per_bit", 0.0) * pj,
+        "noc": hbm_bits * p.get("noc_pj_per_bit", 0.0) * pj,
         "static": p["static_w"] * n * res.step_time,
     }
+    vr = p.get("vr_efficiency", 1.0)
+    parts["power_delivery_loss"] = sum(parts.values()) * (1.0 / vr - 1.0)
     j = sum(parts.values())
     return EnergyResult(j, j / res.step_time, tokens_per_step / j, parts)
 
@@ -68,13 +71,18 @@ def asic_area(hw: Hardware) -> dict:
         "serdes": a["serdes_lanes"] * a["mm2_per_serdes_lane"],
         "lpddr_phy": a.get("lpddr_channels", 0) * a.get("mm2_per_lpddr_channel", 0.0),
     }
+    dies = a.get("dies", 1)
+    blocks["d2d_phy"] = (a.get("d2d_mm2_per_die", 0.0) * dies) if dies > 1 else 0.0
     core = sum(blocks.values())
     blocks["noc_ctrl_misc"] = core * a["misc_fraction"]
     logic = sum(blocks.values())
-    # HBM PHYs must sit on the die edge: half the stacks along each long side
-    long_side = a["hbm_stacks"] / 2 * a.get("mm_shoreline_per_hbm", 0.0)
+    # HBM PHYs sit on the die edge, half of each die's stacks along each long side
+    per_die_stacks = a["hbm_stacks"] / dies
+    long_side = per_die_stacks / 2 * a.get("mm_shoreline_per_hbm", 0.0) + a.get("die_margin_mm", 0.0)
     shore = long_side * a.get("min_short_side_mm", 0.0)
-    blocks["shoreline_floor"] = shore
-    blocks["total"] = max(logic, shore)
+    blocks["shoreline_floor_per_die"] = shore
+    blocks["die_mm2"] = max(logic / dies, shore)
+    blocks["dies"] = dies
+    blocks["total"] = blocks["die_mm2"] * dies
     blocks["whitespace"] = blocks["total"] - logic
     return blocks

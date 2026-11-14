@@ -84,6 +84,19 @@ class ModelSpec:
         p = "layers.*.ffn.experts.*"
         return sum(self.wbytes(f"{p}.{w}") for w in ("w1", "w2", "w3"))
 
+    def expert_layout_factor(self, tp: int) -> float:
+        """In-memory / on-disk bytes for one expert shard in deepseek-ultrafast's `sgl` layout
+        (crates/model/src/packing.rs::sgl_expert_bytes, default on sm_103): the per-rank
+        intermediate width is padded to a multiple of 128 (w13) and 64 (w2 rows), with one
+        512 B scale tile per 128x128. TP4: 576 -> 640 (+7.6%); TP8: 288 -> 384 (+26%)."""
+        if tp <= 0:
+            return 1.0
+        dim, inter = self.dim, self.moe_inter_dim // tp
+        pad = -(-inter // 128) * 128
+        w13 = 2 * pad * dim // 2 + (2 * pad // 128) * (dim // 128) * 512
+        w2 = dim * (-(-inter // 64) * 64) // 2 + (dim // 128) * (pad // 128) * 512
+        return (w13 + w2) / (self.expert_bytes / tp)
+
     @cached_property
     def mtp_expert_bytes(self) -> float:
         p = "mtp.*.ffn.experts.*"

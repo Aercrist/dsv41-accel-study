@@ -64,11 +64,24 @@ At batch 1 the graph is a chain, and the model reduces to
 
 ## Calibration
 
-Fitted on the two measured step times: η (HBM efficiency) = 0.868 and
-κ (exposed time per kernel boundary) = 2.42 µs. Every other GPU
-constant is a published spec. Leave-one-out error with η pinned to STREAM:
-+1.6% (TP8 predicted from TP4) and
--1.3% (the reverse). See [04](04_results.md#calibration) for robustness.
+Fitted on the two measured step times: η (HBM efficiency) = 0.774 and
+κ (exposed latency per dependent kernel stage) = 3.71 µs. Every
+other GPU constant is a published spec or a sourced prior. The as-built engine is modeled with its
+padded expert layout, fused producer-pushed all-reduces, side streams, and replicated decode indexer.
+Leave-one-out with η pinned to STREAM: +3.8% (TP8 from TP4) and
+-3.1% (the reverse). This is a weak test; see [04](04_results.md#calibration)
+for what the data do and do not pin.
+
+## Symmetric constants
+
+Platforms differ only in YAML constants, so a comparison is only as fair as its constants. Where the
+physics is the same, the constant is the same on every platform: HBM efficiency (calibrated),
+DRAM first-byte latency (0.5 µs) and collective latency (1.4 µs computed speed-of-light). Where a
+mechanism differs, the constant differs and the mechanism is written next to it in the YAML:
+* per-stage hand-off: GPU today κ (fitted); GPU barrier 1 µs; GPU flags 0.5 µs; MDA-1 on-chip 0.2 µs;
+* router: GPU 0.5 µs; MDA-1 0.1 µs (RTL).
+
+Joint uncertainty over all of them is in `monte_carlo()` (`experiments/decode_experiments.py`).
 
 ## Cross-checks
 
@@ -79,6 +92,7 @@ constant is a published spec. Leave-one-out error with η pinned to STREAM:
 | matrix-engine utilization vs SCALE-Sim v3 | model was 1.5-1.7x optimistic; corrected |
 | router RTL vs numpy | 256/256, 98 cycles |
 | `pytest tests/` | invariants: byte conservation, batch-1 chain equivalence, monotonicity in bandwidth/latency, calibration reproduces measurements |
+| independent adversarial review | 9 classes of problems found and fixed ([05](05_limitations.md#revisions-after-adversarial-review)) |
 
 ## Tools we did not use
 

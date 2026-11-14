@@ -75,7 +75,7 @@
    "label": "indexer score/top-k + KV compressor",
    "flops_per_token": 192258400.0,
    "bytes_per_token": 7320551.0,
-   "coll_bytes_per_token": 421302.857143,
+   "coll_bytes_per_token": 0.0,
    "intensity": 26.262832
   },
   {
@@ -161,25 +161,29 @@
   "flops": 229195500000.0
  },
  "decode_per_gpu_tp4": {
-  "weights_tp": 2090770000.0,
+  "weights_tp": 2117781000.0,
   "weights_replicated": 807043300.0,
-  "experts_routed": 6711113000.0,
-  "kv": 36813380.0,
-  "total": 9645739000.0
+  "experts_routed": 7207464000.0,
+  "kv": 37675280.0,
+  "total": 10169960000.0
  },
  "decode_per_gpu_tp8": {
-  "weights_tp": 1045385000.0,
+  "weights_tp": 1178237000.0,
   "weights_replicated": 807043300.0,
-  "experts_routed": 3355556000.0,
-  "kv": 36669730.0,
-  "total": 5244654000.0
+  "experts_routed": 4240137000.0,
+  "kv": 37675280.0,
+  "total": 6263092000.0
  },
  "engram": {
   "lookup_bytes_per_step": 76032.0,
   "table_bytes": 202755300000.0,
   "wkv_bytes_per_step": 314880000.0
  },
- "kernels_per_step": 587,
+ "kernels_per_step": 388,
+ "layout_factor": {
+  "tp4": 1.076253,
+  "tp8": 1.263617
+ },
  "collectives_per_step": 86,
  "ops_per_step": 554,
  "ep_alltoall_bytes_per_layer": 737280,

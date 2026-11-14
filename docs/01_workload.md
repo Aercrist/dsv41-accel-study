@@ -8,7 +8,7 @@ measurements are quoted, not reproduced. The rest is **modeled**.
 
 ## 1. What the engine actually runs (read from the code, not the README)
 
-The brief assumed DeepSeek V3/R1 on H100s. The repository serves a newer model on newer silicon:
+The repository serves DeepSeek-V4.1-Flash (not V3/R1) on Blackwell Ultra:
 
 | item | value | where it comes from |
 |---|---|---|
@@ -17,9 +17,9 @@ The brief assumed DeepSeek V3/R1 on H100s. The repository serves a newer model o
 | batch | **one request at a time**: the server holds a single `Job` that every rank executes | `crates/server/src/engine.rs` (`Shared.job`, `next_job`) |
 | parallelism | pure tensor parallelism. Query heads, `wo_a` groups, `wo_b` rows, the vocab, **and every routed/shared expert by its intermediate dim** (2304/TP) are sharded. `wq_a`+`wkv`, the indexer `wq_b`, compressor, gate and mHC projections are **replicated**. There is no expert parallelism and no all-to-all: two all-reduces per layer, fused with the mHC epilogue (NVLS / Lamport buffers) | `crates/engine/src/weights.rs::layer`, `model.rs::comm_ex`, `cu/comm.cu` |
 | speculation | DSpark: 3 drafter blocks (SWA-only attention, 128-expert top-3 MoE) draft 5 tokens; the backbone verifies **6 rows** per step (adaptive length via a CUDA-graph conditional switch) | `model.rs::capture_spec_blk`, `capture_spec_vadapt` |
-| weights | routed experts **FP4 E2M1** with an E8M0 scale per 32 (stored as packed `I8`), dense projections **FP8 E4M3** with E8M0 per 32x32 block, head **BF16** (an FP8 copy is used for drafting, and for verify on GB300 TP4) | safetensors headers (`data/checkpoint_manifest.csv`), `ops.rs::verify_head_fp8` |
+| weights | routed experts **FP4 E2M1** with an E8M0 scale per 32 (stored as packed `I8`), dense projections **FP8 E4M3** with E8M0 per 32x32 block, head **BF16** (an FP8 copy is used for drafting, and for verify on GB300 TP4). In memory, each rank's expert slice is padded to a multiple of 128 rows: **+7.6% bytes at TP4, +26% at TP8** | safetensors headers (`data/checkpoint_manifest.csv`), `ops.rs::verify_head_fp8`, `packing.rs::sgl_expert_bytes` |
 | KV cache | main (compressed) KV **FP4** E2M1 + E4M3 scale per 16 ch; SWA KV FP8; indexer K FP4 | tech report §2.4.4, `inference/model.py` |
-| kernels | hand-written CUDA for tcgen05: weight-streaming GEMV (`tcgemv*`), fused MoE (`tcmoe`, `sgl`), sparse attention, top-k, NVLS all-reduce, Mega-mHC (`hcpipe`), Markov draft head, Gumbel sampler. About 587 kernels and 86 all-reduces per decode step in our op graph (approximate) | `crates/kernels/cu/*.cu`, `tools/nsys_breakdown.py` |
+| kernels | hand-written CUDA for tcgen05: weight-streaming GEMV (`tcgemv*`), fused MoE (`tcmoe`, `sgl`), sparse attention, top-k, Mega-mHC (`hcpipe`), Markov draft head, Gumbel sampler. Every launch uses programmatic dependent launch (PDL); the indexer, compressor and mHC dot products run on side streams; the all-reduces (NVLS multimem + Lamport buffers) are pushed from the producing kernel. Our op graph counts about 388 dependent kernel stages per step on the critical path (approximate) | `crates/kernels/cu/*.cu`, `model.rs` (`launch`, `par_fork`, `comm_ex`) |
 
 Reported performance (README @ `76766a97`, prompt: *"implement the tetris game…"*, thinking off):
 
@@ -45,7 +45,7 @@ From `data/deepseek_v41_flash_inference_config.json`:
 | MoE | 384 routed (top-6, sqrt-softplus, `noaux_tc` bias) + 1 shared; intermediate 2,304 | expert size | **18.80 MB** (FP4 + scales); shared 35.4 MB (FP8) |
 | mHC | 4 residual streams, Sinkhorn 20 iters | Engram | layers 1 and 14, 2 x 384M x 256 FP8 rows, n-gram 2-4, 8 heads |
 
-**Validation against the tech report.** Every one of these is computed from the raw checkpoint bytes and shapes:
+**Validation against the tech report.** Every one of these is computed from the raw checkpoint bytes and shapes. They match to the paper's stated precision; the KV figure matches exactly:
 
 | quantity | paper | ours |
 |---|---|---|
@@ -75,7 +75,7 @@ Normalized per emitted token (system-wide, batch 1, context 2.6K):
 |---|---|---|---|---|
 | CSA2 attention projections (wq_a, wkv, wq_b, wo_a, wo_b) | 12 GFLOP | 981 MB | 11.8 | memory (49x below ridge) |
 | sparse attention core (SWA window + top-512 latent KV) | 3.5 GFLOP | 6.5 MB | 536.3 | near ridge |
-| indexer score/top-k + KV compressor | 192 MFLOP | 7.3 MB (+421 kB on links) | 26.3 | memory (22x below ridge) |
+| indexer score/top-k + KV compressor | 192 MFLOP | 7.3 MB | 26.3 | memory (22x below ridge) |
 | MoE gate + top-k routing | 172 MFLOP | 29 MB | 6.0 | memory (98x below ridge) |
 | shared expert (FP8) | 3.2 GFLOP | 272 MB | 11.8 | memory (49x below ridge) |
 | routed experts (FP4 x FP8) | 19 GFLOP | 4.8 GB | 3.9 | memory (149x below ridge) |
@@ -95,15 +95,16 @@ Per GPU, per step (the TP sharding and replication above):
 
 | | TP4 (GB300) | TP8 (B300) |
 |---|---|---|
-| sharded dense weights | 2.09 GB | 1.05 GB |
+| sharded dense weights | 2.12 GB | 1.18 GB |
 | replicated weights (wqkv, gate, mHC, indexer, compressor) | 0.81 GB | 0.81 GB |
-| routed experts | 6.71 GB | 3.36 GB |
-| KV + index K | 0.037 GB | 0.037 GB |
-| **total** | **9.65 GB** | **5.24 GB** |
-| ...in the measured step time | 2.92 TB/s of 8.0 | 1.94 TB/s of 7.7 |
+| routed experts | 7.21 GB | 4.24 GB |
+| KV + index K | 0.038 GB | 0.038 GB |
+| **total** | **10.17 GB** | **6.26 GB** |
+| ...in the measured step time | 3.08 TB/s of 8.0 | 2.31 TB/s of 7.7 |
 
-So the GPUs average **37%** (TP4) and
-**25%** (TP8) of their peak HBM bandwidth over a step.
+This table is the engine *as built*: padded expert slices, and an FP8 verify head at TP4 but BF16 at TP8.
+The per-token table above uses on-disk bytes. So the GPUs average **39%** (TP4) and
+**30%** (TP8) of their peak HBM bandwidth over a step.
 
 ## 4. Prefill: per prompt token
 
@@ -125,7 +126,7 @@ decoder's global KV from the encoder output and replays only the last 128 tokens
 Prefill is compute-bound everywhere except the routed experts. An 8K chunk touches all 384 experts
 per layer, which puts them near the ridge. The quadratic indexer term is the largest compute item
 at 1M context. Reported 1M-token prefill is 13.2 s. Our roofline model says
-5.5x less (section 3 of [04](04_results.md#prefill-and-ttft)), so prefill
+5.4x less (section 3 of [04](04_results.md#prefill-and-ttft)), so prefill
 is *not* a calibrated part of this study.
 
 ## 5. Roofline on the GPU baseline
@@ -144,20 +145,28 @@ indexer scan only matters for long context *and* large batch.
 
 ## 6. The bottleneck is not where the roofline says
 
-At 3.30 ms per step the 4 x GB300 average 37% of
+At 3.30 ms per step the 4 x GB300 average 39% of
 peak HBM bandwidth. Calibrating the execution model to the two measured step times
 ([06_simulator.md](06_simulator.md#calibration)) splits each step into a part that scales
 with bytes per GPU and a part that does not:
 
 | | 4 x GB300 (3.30 ms) | 8 x B300 (2.71 ms) |
 |---|---|---|
-| weight/KV streaming | 1.37 ms | 0.78 ms |
-| kernel boundaries + collectives (fixed) | **1.91 ms (58%)** | **1.91 ms (71%)** |
+| weight/KV streaming | 1.62 ms | 1.03 ms |
+| per-stage fixed latency + collective latency | **1.66 ms (50%)** | **1.66 ms (61%)** |
 
-The fixed part is about 44 µs per transformer block: roughly 13 dependent kernels and
-2 all-reduces per block, each a few µs. That matches published per-kernel and small-all-reduce latencies
-([sources](sources.md): CUDA-graph launch ~1.3 µs, barriers >1 µs, 4-GPU small all-reduce ~5 µs). Across
-every alternative calibration we tried, the fixed share of the TP4 step stays between
-46% and 58%. That is the opportunity: **a decode engine for this
-model is bounded by per-layer latency as much as by HBM bandwidth.** It also explains why
-TP8 helps so little. More GPUs shrink only the streaming part.
+The fixed part is about 39 µs per transformer block, across about
+9 dependent kernel stages including the fused all-reduces. With PDL these
+are not launch gaps. They are the latency of dependent stages: each kernel's output must be complete
+across the GPU before the next can consume it, plus ramp, tail and collective latency. The fitted
+value, 3.7 µs per stage, is consistent with published measurements
+([sources](sources.md): >1 µs per device-wide barrier, 2.4-5 µs per small 4-GPU all-reduce).
+
+**How sure are we?** The two data points pin the *sum* of fixed costs. They do not pin the split
+between kernel stages and collectives, nor the bandwidth efficiency, tightly. Refitting under every
+alternative we could think of moves the fixed share of the TP4 step between
+**36% and 57%** ([04](04_results.md#calibration)). The alternatives
+are: per-peer all-reduce growth, routing locality, and the README's own run-to-run extremes. The
+range is consistent with TP8 being only 22% faster per step than TP4. That number is an
+input to the fit, though, not independent evidence. A single profile
+(`tools/model_vs_nsys.py` next to the engine's `tools/nsys_breakdown.py`) would settle it.

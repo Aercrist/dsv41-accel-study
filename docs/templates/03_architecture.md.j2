@@ -2,13 +2,14 @@
 # 03 · MDA-1 micro-architecture
 
 MDA-1 ("MoE Decode ASIC") is a **proposed, simulated** design. Nothing here is silicon. Every
-quantitative property cited below is a simulator output (`configs/hw/asic_mda1.yaml`,
-`results/decode.json`) or the RTL testbench (`rtl/`).
+quantitative property below is a simulator output (`configs/hw/asic_mda1.yaml`,
+`results/decode.json`) or the RTL testbench (`rtl/`). One MDA-1 "chip" is a **package of two dies**,
+each with four HBM3E stacks, like a B300.
 
 ## 1. System
 
-A decode group is 4 MDA-1 packages on one board, fully meshed. A GPU prefill pool hands KV over RDMA
-(890 B/token of global KV plus a 128-row SWA replay).
+A decode group is 4 MDA-1 packages on one board, fully meshed. A GPU prefill pool hands over KV via
+RDMA: 890 B/token of global KV plus a 128-row SWA replay.
 
 ```mermaid
 flowchart LR
@@ -17,7 +18,7 @@ flowchart LR
   end
   subgraph DG["MDA-1 decode group (one board)"]
     direction TB
-    A0["MDA-1 #0<br/>8x HBM3E, 8 TB/s"] <-->|"300 GB/s/dir"| A1["MDA-1 #1"]
+    A0["MDA-1 #0<br/>2 dies, 8x HBM3E, 8 TB/s"] <-->|"300 GB/s/dir"| A1["MDA-1 #1"]
     A0 <--> A2["MDA-1 #2"]
     A0 <--> A3["MDA-1 #3"]
     A1 <--> A2
@@ -32,61 +33,61 @@ flowchart LR
   PF -- "global KV 890 B/token<br/>+ encoder tail (RDMA)" --> DG
 ```
 
-Partitioning is the engine's TP4 layout (heads, `wo` groups, experts by intermediate dim). Collectives
-are 2 all-reduces of 6 x 5,120 BF16 per layer. We tested sharding the replicated projections too
-(`DecodeWorkload.shard_replicated`). It *loses* on MDA-1 ({{ D.ablation.shard_replicated_on_mda1.tok_s_user|n }} vs
-{{ C.asic.tok_s_user|n }} tok/s/user): the 0.8 GB of replicated reads it saves per step cost less than
-the extra collectives it adds.
+Partitioning is the engine's TP4 layout: heads, `wo` groups, experts by intermediate dim. We store
+experts unpadded. A layer has 2 all-reduces of 6 x 5,120 BF16. More than 4 packages would need a
+switched fabric, which is not designed here. Sharding the projections the GPU engine replicates
+(`DecodeWorkload.shard_replicated`) *loses* on MDA-1: {{ D.ablation.shard_replicated_on_mda1.tok_s_user|n }}
+vs {{ C.asic.tok_s_user|n }} tok/s/user. The extra collectives cost more than the 0.8 GB of replicated
+reads they save.
 
-## 2. Chip
+## 2. Package and die
 
 ```mermaid
 flowchart TB
-  subgraph CHIP["MDA-1 die (TSMC N4P, ~{{ A.total|n(0) }} mm², shoreline-bound)"]
-    direction TB
-    SEQ["Static schedule sequencer<br/>(compiled per model; no kernels)"]
-    PF["Weight prefetcher / DMA<br/>Belady-ordered: reference stream known at compile time"]
-    RT["MoE router unit<br/>top-6 of 384 in 98 cycles (RTL)"]
-    subgraph MEM["On-chip memory 256 MiB"]
-      STG["Staging buffer<br/>(≥32 MB needed)"]
-      KVS["KV / index-K tiles,<br/>top-k scratch, activations"]
+  subgraph PKG["MDA-1 package (2.5D, CoWoS-L class)"]
+    direction LR
+    subgraph D0["die 0 (~{{ A.die_mm2|n(0) }} mm², N4P)"]
+      direction TB
+      SEQ0["static schedule sequencer"]
+      PF0["weight prefetcher / DMA<br/>(Belady-ordered: future references known at compile time)"]
+      RT0["MoE router: top-6 of 384, 98 cycles (RTL)"]
+      MEM0["128 MiB SRAM: staging, KV tiles, scratch"]
+      GE0["16 x 1024 weight-streaming MAC engines<br/>FP4/FP8 x FP8, block scale in datapath"]
+      VEC0["vector/SFU: norms, RoPE, Sinkhorn, softmax"]
+      SA0["sparse-attention gather + top-k units"]
+      CC0["collective engine + SerDes (36 x 112G)"]
     end
-    subgraph CE["Compute"]
-      GEMV["16 x 1024 weight-streaming MAC engines<br/>FP4/FP8 x FP8, block-scale in datapath<br/>2 PF FP8 / 4 PF FP4"]
-      VEC["Vector / SFU<br/>RMSNorm, RoPE, Sinkhorn, softmax,<br/>sqrt-softplus, FP32 via multipass"]
-      SA["Sparse-attention gather unit<br/>SWA ring + top-512 latent KV,<br/>FP4/FP8 KV dequant"]
-      TK["Streaming top-k units<br/>(indexer top-512, candidate blocks)"]
+    subgraph D1["die 1 (mirror)"]
+      X1["same blocks"]
     end
-    CC["Collective engine<br/>in-fabric all-reduce, reduction ALUs at the link"]
-    NOC["2D mesh NoC, dimension-ordered,<br/>credit flow control"]
+    D0 <-->|"die-to-die, UCIe-class<br/>0.25 pJ/bit"| D1
   end
-  HBM["8x HBM3E PHY + controller<br/>8 TB/s"] <--> NOC
-  NOC <--> MEM
-  NOC <--> CE
-  RT -->|"expert ids, 0.1 µs after<br/>last gate column"| PF
-  PF --> HBM
-  SEQ --> PF
-  SEQ --> CE
-  CC <--> SER["48 x SerDes lanes<br/>3 peers x 300 GB/s"]
-  LP["LPDDR5X ctrl<br/>(Engram rows)"] <--> NOC
+  H0["4x HBM3E (die 0)"] --- D0
+  H1["4x HBM3E (die 1)"] --- D1
+  RT0 -->|"expert ids, 0.1 µs after<br/>the last gate column"| PF0
 ```
+
+Each die streams its own half of every sharded weight from its own 4 stacks. Only activations and
+partial sums cross the die-to-die link.
 
 ### Area (bottom-up, `sim/energy.py::asic_area`)
 
-| block | mm² | basis |
+| block (package total) | mm² | basis |
 |---|---|---|
 | 8 x HBM3E PHY + controller | {{ A.hbm_phy_ctrl|n(0) }} | 12 mm² per stack (GUC: 11 mm² PHY, unverified) |
 | 256 MiB SRAM | {{ A.sram|n(0) }} | N5 HD ≈ 32 Mib/mm² array, x2 for periphery |
-| 2 PF FP8 MAC array | {{ A.compute|n(0) }} | 667K FP8 MACs x 80 µm² (assumption; swept 40-200) |
-| 48 SerDes lanes | {{ A.serdes|n(0) }} | 0.7 mm²/lane (assumption) |
+| 2 PF FP8 MAC array | {{ A.compute|n(0) }} | 667K FP8 MACs x 80 µm² (assumption; not sourced) |
+| 72 x 112G SerDes lanes | {{ A.serdes|n(0) }} | 0.7 mm²/lane (assumption) |
 | LPDDR5X PHYs | {{ A.lpddr_phy|n(0) }} | 4 channels |
+| die-to-die PHYs | {{ A.d2d_phy|n(0) }} | 10 mm² per die (assumption) |
 | NoC, control, misc | {{ A.noc_ctrl_misc|n(0) }} | +25% |
 | **logic sum** | {{ (A.total - A.whitespace)|n(0) }} | |
-| **die (HBM shoreline floor: 4 PHYs x 7 mm per long side, ≥16 mm short side)** | **{{ A.total|n(0) }}** | {{ A.whitespace|n(0) }} mm² whitespace for routing and test |
+| **2 dies at the HBM shoreline floor**: 2 stacks x 11 mm (+2 mm) per long side, ≥14 mm short side | **2 x {{ A.die_mm2|n(0) }}** | {{ A.whitespace|n(0) }} mm² whitespace |
 
-The die is shoreline-bound: eight HBM PHYs need edge, not area. So SRAM up to roughly the floor is
-almost free, and moving to N3E would shrink only logic that does not set the die size.
-Die cost ≈ ${{ U.die|n(0) }} ({{ U.dies_per_wafer|n(0) }} dies/wafer, Murphy yield {{ U.yield|pct }} at D0 = 0.10/cm²).
+Each die is shoreline-bound: four HBM stacks need edge, not area. That is why SRAM up to the floor is
+nearly free, and why N3E would shrink only logic that does not set die size. Silicon cost is about
+${{ U.die|n(0) }} per package ({{ U.dies_per_wafer|n(0) }} dies/wafer, Murphy yield {{ U.yield|pct }} at D0 = 0.10/cm²).
+HBM and packaging dominate the BOM; NRE dominates unit cost ([04](04_results.md#cost)).
 
 ## 3. How a decode step flows
 
@@ -99,63 +100,68 @@ sequenceDiagram
   participant RT as Router
   participant LNK as Links
   Note over HBM: static weights of layers l+1..l+k<br/>prefetched into staging while layer l runs
-  SEQ->>CE: layer l attention chain (mHC, wqkv, wq_b, idx, sparse attn, wo_a, wo_b)
-  CE->>LNK: all-reduce #1 (6 x 5120 BF16), 1.4 µs
+  SEQ->>CE: layer l attention chain (mHC, wqkv, wq_b, indexer, sparse attn, wo_a, wo_b)
+  CE->>LNK: all-reduce #1 (6 x 5120 BF16), ~1.4 µs
   LNK->>CE: residual + mHC post
   CE->>RT: gate scores stream out of the MAC array
   RT->>HBM: expert ids (top-6 x 6 rows → ~35 distinct), 0.1 µs
-  HBM->>CE: routed experts stream (dominant bytes) straight into the GEMV lanes
+  HBM->>CE: routed experts stream (dominant bytes) into the GEMV lanes
   CE->>LNK: all-reduce #2
   Note over CE,HBM: layer l+1 attention starts as soon as #2 lands;<br/>its weights are already staged
 ```
 
-**The design rule.** For a single sequence, layer *l*'s expert fetch cannot start before layer *l*'s
-attention chain and gate finish. The HBM stays busy only if that chain finishes before the
-prefetcher runs out of *static* (data-independent) weights to stage. At TP4 that is about 55 MB per
-chip per layer: 29 MB of sharded attention, 9 MB of shared expert and 17 MB of replicated
-projections, about 8 µs at 7.2 TB/s. MDA-1's chain is about 6 µs: 13 ops at 0.2 µs,
-2 x 1.4 µs collectives, router and first-byte latency. So its HBM is
-{{ pct(C.asic.hbm_busy) }} busy. The ideal-software GPU's chain is about 16 µs, so it idles
-({{ pct(C.gpu_ideal_tp4.hbm_busy) }} busy); today's GPU code spends about {{ (K.fixed4_ms*1000/43)|n(0) }} µs of fixed latency per layer ({{ pct(C.gpu_tp4.hbm_busy) }} busy).
-The budget shrinks as chips are added, because each chip's static bytes per layer shrink. That is
-why MDA-1's strong scaling eventually flattens too ([04](04_results.md#strong-scaling)).
+**The design rule** applies to MDA-1 and to GPU software alike. For one sequence, layer *l*'s expert
+fetch cannot start until layer *l*'s attention chain and gate finish. The HBM stays busy only if that
+chain finishes before the prefetcher runs out of *static* (data-independent) weights to stage. At TP4
+that is about 55 MB per package per layer: 29 MB sharded attention, 9 MB shared expert, 17 MB
+replicated projections. That is about 9 µs at the calibrated 6.2 TB/s.
+
+| chain per layer | time | HBM busy |
+|---|---|---|
+| MDA-1: ~13 ops x 0.2 µs + 2 x 1.4 µs all-reduce + router + first byte | ~6 µs | {{ C.asic.hbm_busy|pct }} |
+| GPU dataflow-style software: ~13 x 0.5 µs hand-offs + 2 x 1.4 µs + router | ~10 µs | {{ C.gpu_df_tp4.hbm_busy|pct }} |
+| GPU today: ~9 dependent kernel stages x {{ cal.kernel_overhead_us|n(1) }} µs + collectives | ~{{ (K.fixed4_ms*1000/43)|n(0) }} µs | {{ C.gpu_tp4.hbm_busy|pct }} |
+
+Both of the first two keep the HBM nearly saturated. That is why they reach the same speed. The
+budget shrinks as packages are added, because each package's static bytes per layer shrink. That is
+where MDA-1's shorter hand-off starts to show ([04](04_results.md#strong-scaling)).
 
 ## 4. Datapaths and number formats
 
-* **FP4 x FP8 GEMV lanes.** Expert weights arrive as E2M1 nibbles with one E8M0 exponent per 32 elements. The lane multiplies by the FP8 E4M3 activation and accumulates 32 products in FP32 before applying the block scale. Because E8M0 is a power of two, the scale is an exponent add on the partial sum, not a multiply. The same lane takes FP8 x FP8 for dense projections (E8M0 per 32x32 block).
-* **Engine shape.** 16 rows (GEMM M) x 1,024 columns per engine. Decode presents M = 6 (verify rows), about 1 row per routed expert at batch 1, and about 6 per expert at batch 64. SCALE-Sim shows a conventional 128x128 weight-stationary array at 0.3-1.5% utilization on these shapes. A 16-row output-stationary engine reaches 3-21% ([04](04_results.md#scale-sim)). Batch-1 decode needs only about 0.2 PF effective of the 4 PF FP4 peak, so utilization is not the binding constraint. Shape matters for batch ≥ 16.
-* **Sparse-attention unit.** Gathers 128 SWA entries (FP8) and 512 top-k latent entries (FP4 + E4M3/16) per row, dequantizes on the fly, and computes 64-head QK/PV with the attention sink. The latent is shared by all heads, so one gather serves 64 heads (536 FLOP/B, 01 §3).
-* **Top-k units.** Streaming 32-element-per-cycle insertion networks for indexer top-512 over up to 1M scores (layer 20) and the 2,048-block candidate pool. MoE routing uses the dedicated router below.
+* **FP4 x FP8 GEMV lanes.** Expert weights arrive as E2M1 nibbles with one E8M0 exponent per 32 elements. The lane multiplies by the FP8 E4M3 activation, accumulates 32 products in FP32, then applies the block scale. E8M0 is a power of two, so the scale is an exponent add on the partial sum, not a multiply. The same lane takes FP8 x FP8 for dense projections (E8M0 per 32x32 block).
+* **Engine shape.** 16 rows (GEMM M) x 1,024 columns per engine. Decode presents M = 6 (verify rows); at batch 1 that is about 1 row per routed expert. SCALE-Sim shows a 128x128 weight-stationary array at 0.3-1.5% utilization on these shapes, and the 16-row engine at 3-21% ([04](04_results.md#scale-sim)). Batch-1 decode needs only ~0.2 PF effective, so utilization binds only at batch ≥ 16.
+* **Sparse-attention unit.** Gathers 128 SWA entries (FP8) and 512 top-k latent entries (FP4 + E4M3/16) per row, dequantizes on the fly, and runs 64-head QK/PV with the attention sink. One gather serves all 64 heads (536 FLOP/B, 01 §3).
+* **Top-k units.** Streaming insertion networks for indexer top-512 (up to 1M scores at layer 20) and the 2,048-block candidate pool.
 
 ## 5. MoE router in hardware (verified RTL)
 
-`rtl/moe_topk_router.sv`: 8 lanes of 6-entry insertion queues absorb 8 gate keys per cycle (48 beats
-for 384 experts), then a 48-entry merge pass. Selection key = sqrt-softplus(logit) + `noaux_tc` bias;
-ties go to the lower expert id. **{{ RTL.match }} tokens match a numpy golden model in Icarus Verilog; latency
-{{ RTL.latency_cycles }} cycles ({{ (RTL.latency_cycles/1.5)|n(0) }} ns at 1.5 GHz).** The router feeds expert ids directly to the
-prefetcher's DMA queue, so the first expert bytes are requested about 0.1 µs after the last gate column.
-In the tornado, router latency from 0.05 to 2 µs moves speed by under 2%. The prefetcher hides it,
-which is itself a finding: **router latency only matters when the weight stream has run dry.**
+`rtl/moe_topk_router.sv` has 8 lanes of 6-entry insertion queues. They absorb 8 gate keys per cycle
+(48 beats for 384 experts), then a 48-entry merge pass produces the result. The selection key is
+sqrt-softplus(logit) plus the `noaux_tc` bias; ties go to the lower expert id.
+**{{ RTL.match }} tokens match a numpy golden model in Icarus Verilog; latency {{ RTL.latency_cycles }} cycles
+({{ (RTL.latency_cycles/1.5)|n(0) }} ns at 1.5 GHz).** In the tornado, router latency from 0.05 to 2 µs moves
+speed by under 1%: the prefetcher hides it. **A hardware router is not where silicon earns its keep.**
 
-## 6. Ideas borrowed from other fields
+## 6. Ideas borrowed from other fields, and what they bought (simulated)
 
-| idea | from | used for | did it pay? (simulated) |
+| idea | from | where it lands | gain |
 |---|---|---|---|
-| deterministic, compiler-scheduled dataflow; no kernels | Groq TSP, Cerebras | removes the per-kernel overhead that is {{ K.fixed4_share|pct }} of today's step | yes: A0→A2 in the ablation, +{{ ((K.abl[2].tok_s_user/K.abl[0].tok_s_user - 1)*100)|n(0) }}% |
-| Belady/MIN-optimal prefetch | caching theory | the static schedule *is* the future reference string, so the weight prefetcher can be offline-optimal | yes: A2→A3, +{{ ((K.abl[3].tok_s_user/K.abl[2].tok_s_user - 1)*100)|n(0) }}% with ≥32 MB staging |
-| in-network reduction | HPC (BlueGene, Anton, NVLS) | 2 all-reduces per layer, latency set to NVLink's measured speed-of-light | yes: A4→A5, +{{ ((K.abl[5].tok_s_user/K.abl[4].tok_s_user - 1)*100)|n(0) }}% |
-| model-specific silicon | Etched Sohu | hard-wire FP4/FP8 GEMV, top-k, router, gather; keep model structure in software | partially, by design (see 02) |
-| LRU/LFU caching of experts | CDN / CPU caches | SRAM expert cache across steps | **no.** With locality fit to published DeepSeek-V2-Lite LRU data, half of MDA-1's SRAM holds {{ D.expert_cache.slots_per_layer_in_half_sram|n(1) }} expert slices per layer; even a {{ pct(D.expert_cache.curves.lru[3].hit) }} LRU hit rate needs {{ D.expert_cache.curves.lru[3].sram_gb_per_chip|n(0) }} GB per chip ([04](04_results.md#expert-cache)) |
-| pre-gating / expert prediction | Pre-gated MoE (ISCA'24) | issue expert fetch before the gate | not needed on MDA-1: router latency is already hidden (above) |
-| dimension-ordered mesh NoC + credit flow control | HPC interconnects | on-die HBM→engine fabric | not simulated at flit level (limitation) |
+| unpadded expert layout | -- | software | A0→A1 +{{ ((K.abl_by.A1.tok_s_user/K.abl_by.A0.tok_s_user-1)*100)|n(0) }}% (TP4; the TP8 padding is +{{ ((W.layout_factor.tp8-1)*100)|n(0) }}% bytes) |
+| one persistent program, no per-kernel completion | Groq/Cerebras static scheduling; GPU megakernels | software or silicon | A1→A2 +{{ ((K.abl_by.A2.tok_s_user/K.abl_by.A1.tok_s_user-1)*100)|n(0) }}% (barriers), A2→A3 +{{ ((K.abl_by.A3.tok_s_user/K.abl_by.A2.tok_s_user-1)*100)|n(0) }}% (flags) |
+| Belady/MIN-optimal weight prefetch | caching theory: the static schedule *is* the future reference string | software (TMA L2 prefetch) or silicon (staging SRAM) | A3→A4 +{{ ((K.abl_by.A4.tok_s_user/K.abl_by.A3.tok_s_user-1)*100)|n(0) }}% |
+| speed-of-light in-network all-reduce | HPC (BlueGene, Anton); NVLS already reduces in the switch | software or silicon | A4→A5 +{{ ((K.abl_by.A5.tok_s_user/K.abl_by.A4.tok_s_user-1)*100)|n(0) }}% |
+| on-chip hand-off, HW router, Engram off-HBM | Etched-style specialization | silicon only | A5→A6 {{ "%+.0f"|format((K.abl_by.A6.tok_s_user/K.abl_by.A5.tok_s_user-1)*100) }}% at 4 chips; +{{ ((K.asic16/K.sw16-1)*100)|n(0) }}% at 16 |
+| LRU/LFU caching of experts | CDN / CPU caches | SRAM expert cache | **no**: half of MDA-1's SRAM holds {{ D.expert_cache.slots_per_layer_in_half_sram|n(1) }} expert slices per layer; a {{ D.expert_cache.curves.lru[3].hit|pct }} LRU hit needs {{ D.expert_cache.curves.lru[3].sram_gb_per_chip|n(0) }} GB per chip |
+| pre-gating / expert prediction | Pre-gated MoE (ISCA'24) | expert fetch before the gate | not needed: router latency is already hidden |
 
 ## 7. Power (bottom-up, batch 1)
 
-| | J per step (4 chips) | share |
+| | J per step (4 packages) | share |
 |---|---|---|
 {% for k, v in C.asic.energy_parts_j.items() %}
 | {{ k }} | {{ v|n(3) }} | {{ pct(v / C.asic.energy_parts_j.values()|sum) }} |
 {% endfor %}
 
-That averages **{{ (C.asic.watts/4)|n(0) }} W per chip** at {{ C.asic.tok_s_user|n }} tok/s/user. HBM energy uses the HBM2
-figure (3.97 pJ/bit). HBM3E's absolute figure is not public, and we did not assume it is better.
+That averages **{{ (C.asic.watts/4)|n(0) }} W per package** at {{ C.asic.tok_s_user|n }} tok/s/user. HBM uses the
+HBM2 figure (3.97 pJ/bit), since HBM3E's absolute figure is not public. NoC transport is 0.5 pJ/bit and
+power delivery is 88% efficient, both assumptions.

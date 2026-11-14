@@ -2,70 +2,71 @@
 # Draft posts
 
 Repo link placeholder: `https://github.com/benblaine/dsv41-accel-study` (update once published).
-Attach `results/fig_step_breakdown.png` to post 1 and `results/fig_strong_scaling.png` to post 4.
+Attach `results/fig_step_breakdown.png` to post 1 and `results/fig_ablation.png` to post 3.
 
 ## X thread
 
 **1/**
-Baseten's deepseek-ultrafast decodes DeepSeek-V4.1-Flash at 1,740 tok/s on 4x GB300.
+Baseten's deepseek-ultrafast runs DeepSeek-V4.1-Flash at 1,740 tok/s on 4x GB300. I modeled where the time goes.
 
-I modeled where the time goes. Only ~42% of each 3.3 ms step moves weights. The other 58% is fixed per-layer latency: kernel boundaries + all-reduces.
-
-The HBM sits idle most of the step. 🧵 [step breakdown]
+About half of each 3.3 ms decode step isn't moving weights. It's fixed per-stage latency: ~39 µs per transformer block, waiting on dependent kernels and all-reduces. 🧵 [step breakdown]
 
 **2/**
-That one fact explains their own numbers. 8x B300 is only 22% faster per step than 4x GB300: more GPUs shrink the streaming part, not the 1.9 ms of latency.
+That's why 8 GPUs are only 22% faster per step than 4. More GPUs shrink the streaming. The latency stays.
 
-Same reason Rubin's 2.75x bandwidth buys only ~37% with today's per-layer overheads (modeled).
+It's also why Rubin's 2.4x bandwidth buys only ~41% with today's per-stage latency (modeled).
 
 **3/**
-How I know: an op-level simulator built from the engine's Rust/CUDA source and the checkpoint's safetensors headers. It reproduces DeepSeek's 552B / 16B-active / 890 B-per-token KV exactly.
+The fix is an execution model, not more silicon. One persistent program, flag hand-offs instead of barriers, and the next layers' weights streaming while this layer's experts load.
 
-Calibrated on TP4, it predicts the TP8 step time to within 1.6%.
+Same 4x GB300, modeled: 3,486 tok/s/user, 2.0x. [ablation]
 
 **4/**
-So I designed silicon around the bottleneck: MDA-1, a decode-only ASIC with *the same* 8 TB/s HBM as a B300, a static compiled schedule (no kernels), weight prefetch, a hardware MoE router and in-fabric all-reduce.
+Then I designed the silicon anyway. MDA-1: a decode ASIC with the same 8 TB/s HBM, 2 PF FP8, a hardware MoE router (RTL-verified) and in-fabric all-reduce.
 
-Simulated: 4,040 tok/s/user on 4 chips (2.3x), 6,464 on 8 (3.1x the measured 8x B300). [strong scaling]
+It hits the HBM roofline: 3,482 tok/s/user. Same as good software on the same bandwidth. Silicon doesn't buy speed here.
 
 **5/**
-It's not about FLOPs. MDA-1 carries 40% of a B300's compute. The win is converting bandwidth into tokens: HBM 97% busy vs 42%.
+What it buys is economics: ~1.6x lower $/token and ~1.8x tokens/J vs GPUs running that same software. That's at $45K/GPU and 60% TDP; the range is in the repo.
 
-Modeled 4.9x tokens/J and 3.8x lower $/M tokens than the same GPUs owned.
+Break-even is ~9,000 chips at $300M NRE. Hyperscaler math, not startup math.
 
 **6/**
 Things that surprised me:
-• A 128x128 systolic array runs decode GEMVs at 0.3-1.5% utilization (SCALE-Sim). The engine has to be 16 rows wide.
-• Caching experts in SRAM is a dead end. It needs GBs per chip.
-• Engram's 203 GB of tables need ~23 MB/s. Put them in LPDDR.
+• A 128x128 systolic array runs these decode GEMVs at 0.3-1.5% utilization (SCALE-Sim). The engine has to be 16 rows wide.
+• SRAM expert caches are a dead end. They need GBs per chip.
+• Engram's 203 GB of tables serve ~23 MB/s of lookups. Put them in LPDDR.
+• At TP8 the expert layout pads +26% bytes.
 
 **7/**
-Software headroom is real too: an ideal GPU stack bounds at 3,151 tok/s on the same 4 GPUs. Silicon pulls ahead as you scale out (1.51x at 8 chips) and on energy and cost.
+Everything is open and reproducible: simulator, calibration, joint Monte Carlo, ablation, router RTL, and the list of claims an adversarial review made me fix. `make reproduce`.
 
-Everything is open: simulator, calibration, tornado, ablation, RTL. `make reproduce`.
 → https://github.com/benblaine/dsv41-accel-study
 
 ## LinkedIn
 
-Baseten open-sourced deepseek-ultrafast, a hand-tuned engine that decodes DeepSeek-V4.1-Flash at 1,740 tokens/s per user on 4x GB300. I used it as the reference workload for a hardware study.
+Baseten open-sourced deepseek-ultrafast, a hand-tuned engine that decodes DeepSeek-V4.1-Flash at 1,740 tokens/s per user on 4x GB300. I used it as the reference workload for a hardware study, and the answer surprised me.
 
-The headline: about 58% of every decode step is fixed per-layer latency, not memory bandwidth. It explains why 8 GPUs are only 22% faster than 4.
+About half of every decode step is fixed per-stage latency, not memory bandwidth. A dataflow-style execution model removes most of it: on the same GPUs, the model projects 2.0x the speed. A custom decode ASIC built around that execution model reaches the same speed at the same memory bandwidth. Its advantage is cost and energy per token at volume, not raw speed.
 
-Designing around that, a decode-only ASIC with the same HBM bandwidth as a B300 projects 4,040 tokens/s per user on 4 chips and 6,464 on 8. That's 4.9x the tokens per joule, from a statically scheduled pipeline, a hardware MoE router and in-fabric collectives.
-
-Simulator, calibration against Baseten's published numbers, sensitivity analysis and a verified RTL block are in the repo, reproducible with one command. All MDA-1 numbers are modeled projections.
+The simulator, calibration against Baseten's published numbers, the joint uncertainty analysis and a verified RTL block are all in the repo, reproducible with one command. All projections are modeled.
 
 ## Reply to the Baseten team
 
 Hi Baseten team, thanks for open-sourcing deepseek-ultrafast. It's the most legible serving engine I've read, and it made a serious hardware study possible.
 
-I built an op-level performance model from the engine's source and V4.1's checkpoint headers. Calibrated to your README's step times (3.30 ms TP4, 2.71 ms TP8), it predicts one configuration from the other within ~1.6%.
+I built an op-level performance model from the engine's source and V4.1's checkpoint headers. It accounts for PDL, the producer-pushed NVLS all-reduces, side streams, and the padded `sgl` expert layout. Fitted to your README's step times (3.30 ms TP4, 2.71 ms TP8), it attributes ~1.7 ms of each TP4 step (50%; 36%-57% across alternative fits) to dependent-stage latency, not weight streaming.
 
-It says about 1.9 ms of each 3.30 ms step is fixed per-layer latency: roughly 44 µs per block across ~13 dependent kernels and 2 all-reduces. HBM averages ~37% of peak over the step.
+Three things you might find useful:
 
-Two things you might find useful:
+1. **Software ceiling.** On the same 4x GB300 the model projects about 3,486 tok/s/user from:
+   - one persistent program with flag hand-offs;
+   - L2 prefetch of the next layers' dense weights while the current layer's experts stream;
+   - an unpadded expert layout;
+   - an all-reduce near NVLink's speed-of-light.
 
-1. The model puts the software ceiling on the same 4x GB300 at about 3,151 tok/s: persistent kernel, cross-layer L2 prefetch of the next layers' attention/shared weights while experts stream, and a ~2.4 µs all-reduce. The prefetch piece is the least obvious. Next-layer dense weights can stream during the current layer's gate→expert gap.
-2. One `nsys` run through your `tools/nsys_breakdown.py` would confirm or kill the diagnosis. `tools/model_vs_nsys.py` in the repo prints our prediction in your exact kernel groups (MoE ~39%, all-reduce / gather ~20%, dense projections ~19% of the step). I'd love to compare notes if you're up for sharing a breakdown.
+   The prefetch piece is the least obvious. A layer's gate→expert gap is exactly when the next layers' attention and shared-expert weights can stream.
+2. **TP8 padding.** At TP8 the 288→384 padding of each rank's expert slice adds ~26% to routed-expert bytes, if the padding is streamed.
+3. **One profile settles it.** `tools/model_vs_nsys.py` prints the model's prediction in the exact groups of your `tools/nsys_breakdown.py`. One `nsys` run would confirm or kill the diagnosis. I'd love to compare notes if you're up for sharing a breakdown.
 
-The ASIC side, MDA-1, is a simulated projection: 4,040 tok/s/user on 4 chips at iso-HBM bandwidth. Everything is in the repo: https://github.com/benblaine/dsv41-accel-study
+The ASIC side (MDA-1) is a simulated projection. It matches that software ceiling and wins only on $/token and W/token at volume. Everything is here: https://github.com/benblaine/dsv41-accel-study

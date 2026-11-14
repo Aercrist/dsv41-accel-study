@@ -108,9 +108,10 @@ def main() -> dict:
         "unique_bytes": sum(o.w_tp + o.w_rep + o.w_dyn + o.kv_rep + o.kv_tp + o.host for o in ops),
         "flops": sum(o.total_flops() for o in ops),
     }
-    for tp in (4, 8):
-        per = {"weights_tp": sum(o.w_tp for o in ops) / tp, "weights_replicated": sum(o.w_rep for o in ops),
-               "experts_routed": sum(o.w_dyn for o in ops) / tp, "kv": sum(o.kv_rep for o in ops) + sum(o.kv_tp for o in ops) / tp}
+    for tp in (4, 8):  # as built: the engine's padded expert layout and its verify-head precision
+        o_tp = decode_step(s, DecodeWorkload(context=2600, layout_tp=tp, verify_head="fp8" if tp == 4 else "bf16"))
+        per = {"weights_tp": sum(o.w_tp for o in o_tp) / tp, "weights_replicated": sum(o.w_rep for o in o_tp),
+               "experts_routed": sum(o.w_dyn for o in o_tp) / tp, "kv": sum(o.kv_rep for o in o_tp) + sum(o.kv_tp for o in o_tp) / tp}
         per["total"] = sum(per.values())
         out[f"decode_per_gpu_tp{tp}"] = per
     out["engram"] = {
@@ -119,6 +120,7 @@ def main() -> dict:
         "wkv_bytes_per_step": sum(o.w_tp for o in ops if o.name == "engram_wkv"),
     }
     out["kernels_per_step"] = sum(o.n_kernels for o in ops)
+    out["layout_factor"] = {"tp4": s.expert_layout_factor(4), "tp8": s.expert_layout_factor(8)}
     out["collectives_per_step"] = sum(1 for o in ops if o.coll > 0)
     out["ops_per_step"] = len(ops)
     # what an expert-parallel (all-to-all) layout would move instead of the two all-reduces

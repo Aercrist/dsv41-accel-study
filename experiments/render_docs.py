@@ -24,7 +24,11 @@ OUTPUTS = {
 
 
 def n(x, d=0):
-    return "n/a" if x is None else f"{x:,.{d}f}"
+    if x is None:
+        return "n/a"
+    if d < 0:  # round to 10^-d and print without decimals
+        return f"{round(x, d):,.0f}"
+    return f"{x:,.{d}f}"
 
 
 def pct(x, d=0):
@@ -60,45 +64,43 @@ def context() -> dict:
     fixed4 = dec4["overhead"] + dec4["collective"]
     dec8 = cal["decomposition"]["b300_tp8"]
     fixed8 = dec8["overhead"] + dec8["collective"]
-    sens = cal["fit_sensitivity"]
     ss = D["strong_scaling"]
-    tor = D["tornado"]
-    spd = [r[k]["speedup"] for r in tor["rows"] if not r["param"].startswith("routing") for k in ("low", "high")]
-    usd = [r[k]["usd_per_mtok"] for r in tor["rows"] for k in ("low", "high")]
-    tpj = [r[k]["tok_per_joule"] for r in tor["rows"] for k in ("low", "high")]
+    cm = D["comparison"]
+    ps = {r["load_fraction"]: r for r in cm["gpu_power_sweep"]}
+    pr = {r["purchase_usd_per_gpu"]: r for r in cm["gpu_price_sweep"]}
     abl = D["ablation"]["steps"]
+    MC = D["monte_carlo"]
     K = {
         "meas4": REP["configs"]["gb300_tp4"], "meas8": REP["configs"]["b300_tp8"],
         "fixed4_ms": fixed4, "fixed4_share": fixed4 / REP["configs"]["gb300_tp4"]["step_ms"],
         "fixed8_ms": fixed8, "fixed8_share": fixed8 / REP["configs"]["b300_tp8"]["step_ms"],
         "mem4_ms": dec4["memory"], "mem8_ms": dec8["memory"],
-        "fixed_share_min": min(s["fixed_share_tp4"] for s in sens), "fixed_share_max": max(s["fixed_share_tp4"] for s in sens),
+        "fixed_lo": cal["fixed_share_range"][0], "fixed_hi": cal["fixed_share_range"][1],
         "tp8_gain": REP["configs"]["gb300_tp4"]["step_ms"] / REP["configs"]["b300_tp8"]["step_ms"] - 1,
-        "asic_vs_meas": C["asic"]["tok_s_user"] / REP["configs"]["gb300_tp4"]["decode_tok_s"],
+        "tp8_tok_gain": REP["configs"]["b300_tp8"]["decode_tok_s"] / REP["configs"]["gb300_tp4"]["decode_tok_s"] - 1,
+        "sw_vs_model": C["gpu_df_tp4"]["tok_s_user"] / C["gpu_tp4"]["tok_s_user"],
+        "sw_vs_meas": C["gpu_df_tp4"]["tok_s_user"] / REP["configs"]["gb300_tp4"]["decode_tok_s"],
         "asic_vs_model": C["asic"]["tok_s_user"] / C["gpu_tp4"]["tok_s_user"],
-        "asic_vs_ideal": C["asic"]["tok_s_user"] / C["gpu_ideal_tp4"]["tok_s_user"],
-        "asic_vs_mk": C["asic"]["tok_s_user"] / C["gpu_mk_tp4"]["tok_s_user"],
-        "ideal_vs_model": C["gpu_ideal_tp4"]["tok_s_user"] / C["gpu_tp4"]["tok_s_user"],
-        "asic8": ss["asic"][2]["tok_s_user"], "asic16": ss["asic"][3]["tok_s_user"],
-        "gpu8": ss["gpu_tp4"][2]["tok_s_user"], "gpu16": ss["gpu_tp4"][3]["tok_s_user"],
-        "ideal8": ss["gpu_ideal_tp4"][2]["tok_s_user"], "ideal16": ss["gpu_ideal_tp4"][3]["tok_s_user"],
-        "asic8_vs_meas8": ss["asic"][2]["tok_s_user"] / REP["configs"]["b300_tp8"]["decode_tok_s"],
-        "tpj_ratio": C["asic"]["tok_per_joule"] / C["gpu_tp4"]["tok_per_joule"],
-        "usd_ratio_owned": C["gpu_tp4"]["usd_per_mtok_owned"] / C["asic"]["usd_per_mtok"],
-        "usd_ratio_owned_ideal": C["gpu_ideal_tp4"]["usd_per_mtok_owned"] / C["asic"]["usd_per_mtok"],
-        "usd_ratio_rental": C["gpu_tp4"]["usd_per_mtok"] / C["asic"]["usd_per_mtok"],
+        "asic_vs_meas": C["asic"]["tok_s_user"] / REP["configs"]["gb300_tp4"]["decode_tok_s"],
+        "asic_vs_sw": C["asic"]["tok_s_user"] / C["gpu_df_tp4"]["tok_s_user"],
+        "asic8": ss["asic"][2]["tok_s_user"], "sw8": ss["gpu_df_tp4"][2]["tok_s_user"], "gpu8": ss["gpu_tp4"][2]["tok_s_user"],
+        "asic16": ss["asic"][3]["tok_s_user"], "sw16": ss["gpu_df_tp4"][3]["tok_s_user"], "gpu16": ss["gpu_tp4"][3]["tok_s_user"],
+        "tpj_vs_sw": ps[0.6]["asic_ratio_vs_gpu_df"], "tpj_vs_sw_lo": ps[0.4]["asic_ratio_vs_gpu_df"], "tpj_vs_sw_hi": ps[1.0]["asic_ratio_vs_gpu_df"],
+        "tpj_vs_gpu": ps[0.6]["asic_ratio_vs_gpu"], "tpj_vs_gpu_lo": ps[0.4]["asic_ratio_vs_gpu"], "tpj_vs_gpu_hi": ps[1.0]["asic_ratio_vs_gpu"],
+        "usd_vs_sw": pr[45000]["asic_ratio_vs_gpu_df"], "usd_vs_sw_lo": pr[25000]["asic_ratio_vs_gpu_df"], "usd_vs_sw_hi": pr[65000]["asic_ratio_vs_gpu_df"],
+        "usd_vs_gpu": pr[45000]["asic_ratio_vs_gpu"], "usd_vs_gpu_lo": pr[25000]["asic_ratio_vs_gpu"], "usd_vs_gpu_hi": pr[65000]["asic_ratio_vs_gpu"],
+        "be_sw_300": cm["breakeven_volume"]["gpu_df_tp4@nre300M"], "be_sw_600": cm["breakeven_volume"]["gpu_df_tp4@nre600M"],
+        "be_sw_150": cm["breakeven_volume"]["gpu_df_tp4@nre150M"], "be_gpu_300": cm["breakeven_volume"]["gpu_tp4@nre300M"],
         "rubin_vs_gb300": C["rubin_tp4"]["tok_s_user"] / C["gpu_tp4"]["tok_s_user"] - 1,
-        "rubin_bw_ratio": 22.0 / 8.0,
-        "spd_min": min(spd), "spd_max": max(spd), "usd_min": min(usd), "usd_max": max(usd),
-        "tpj_min": min(tpj), "tpj_max": max(tpj),
-        "abl": abl,
-        "gpu_owned_sweep": tor["gpu_owned_cost_sweep"],
+        "rubin_df_vs_gb300": C["rubin_df_tp4"]["tok_s_user"] / C["gpu_tp4"]["tok_s_user"],
+        "rubin_bw_ratio": 19.2 / 8.0,
+        "abl": abl, "abl_by": {s["id"]: s for s in abl}, "MC": MC,
+        "roofline": cm["roofline_tok_s_asic"],
     }
     bs = D["batch_sweep"]
     K["b256_asic"] = bs["asic"][-1]
     K["b256_gpu"] = bs["gpu_tp4"][-1]
-    K["b64_asic"] = [p for p in bs["asic"] if p["batch"] == 64][0]
-    K["b64_gpu"] = [p for p in bs["gpu_tp4"] if p["batch"] == 64][0]
+    K["b256_sw"] = bs["gpu_df_tp4"][-1]
     return {"W": W, "D": D, "P": P, "S": S, "REP": REP, "RTL": RTL, "C": C, "K": K, "cal": cal}
 
 

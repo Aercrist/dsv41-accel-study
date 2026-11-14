@@ -2,7 +2,7 @@
 # overhead and collective latency carried over unchanged). Not a measured system.
 extends: gb300_tp4.yaml
 name: 4x Rubin, today's software (projected)
-hbm_bw: 22.0e12           # higher of NVIDIA's two published figures (19.2 / 22 TB/s); src: nv-rubin
+hbm_bw: 19.2e12           # Vera Rubin NVL72 page (the HGX page says 22 TB/s); src: nv-rubin
 peak:
   fp4: 35.0e15            # dense; src: nv-rubin
   fp8: 17.5e15
