@@ -1,55 +1,65 @@
 <!-- generated from docs/templates/POST.md.j2 by experiments/render_docs.py; edit the template -->
 # Draft posts
 
-Repo link placeholder: `https://github.com/benblaine/dsv41-accel-study` (update once published).
-Attach `results/fig_step_breakdown.png` to post 1 and `results/fig_ablation.png` to post 3.
+Repo: https://github.com/Aercrist/dsv41-accel-study
+Attach `results/fig_step_breakdown.png` to post 1, `results/fig_ablation.png` to post 3 and `results/fig_hbm_sweep.png` to post 6.
+All numbers below are modeled projections from the repo, not measurements, except Baseten's published 1,740 tok/s.
 
 ## X thread
 
 **1/**
-Baseten's deepseek-ultrafast runs DeepSeek-V4.1-Flash at 1,740 tok/s on 4x GB300. I modeled where the time goes.
+DeepSeek-V4.1-Flash decode has ~2x headroom, and a purpose-built chip can deliver it at ~3x lower cost per token.
 
-About half of each 3.3 ms decode step isn't moving weights. It's fixed per-stage latency: ~43 µs per transformer block, waiting on dependent kernels and all-reduces. 🧵 [step breakdown]
+I modeled Baseten's deepseek-ultrafast (1,740 tok/s/user on 4x GB300) from its source and the model's checkpoint to find where the time goes. 🧵 [step breakdown]
 
 **2/**
-Their TP8 result is the tell. If the step were all bandwidth, 8 GPUs would be close to 2x faster than 4. They're 22% faster. More GPUs shrink the streaming; the latency stays.
+About half of each 3.3 ms decode step is waiting between dependent steps (~43 µs per block), not moving weights. That's the opportunity.
 
-Same reason Rubin's 2.4x bandwidth buys only ~35% with today's per-stage latency (modeled).
+It also explains their own scaling: 8 GPUs are only 22% faster per step than 4. More GPUs speed up the streaming, not the waiting.
 
 **3/**
-The fix is an execution model, not more silicon. One persistent program with flag hand-offs instead of dependent kernel launches, and the next layers' weights streaming while this layer's experts load.
+Win #1 needs no new hardware: one persistent program with flag hand-offs, streaming the next layers' weights while this layer's experts load.
 
-Same 4x GB300, modeled: 3,596 tok/s/user, 2.1x. [ablation]
+Same 4x GB300, modeled: 3,596 tok/s/user. 2.1x. [ablation]
 
 **4/**
-Then I designed the silicon anyway. MDA-1: a decode ASIC with the same 8 TB/s HBM, 2 PF FP8, a hardware MoE router (RTL-verified) and in-fabric all-reduce.
+Win #2 is purpose-built silicon. MDA-1 is a decode ASIC with the same 8 TB/s HBM, 2 PF FP8, a hardware MoE router (RTL-verified) and in-fabric all-reduce, built around that execution model.
 
-It runs at 94% of its HBM roofline: 3,656 tok/s/user. Same as good software on the same bandwidth. Silicon doesn't buy speed here.
+3,656 tok/s/user at 94% of its memory roofline: 1.6x-2.3x today's speed across a joint uncertainty analysis.
 
 **5/**
-What it buys is economics: ~1.5x lower $/token and ~1.8x tokens/J vs GPUs running that same software. That's at $45K/GPU and 60% TDP; the range is in the repo.
+And it's far cheaper to run: ~3.2x lower $/token and ~3.9x more tokens per joule than today's engine.
 
-Break-even is ~9,000 chips at $300M NRE. Hyperscaler math, not startup math.
+Even against GPUs running the improved software it stays ~1.5x cheaper and ~1.8x more efficient. The GPU price and power assumptions and their ranges are in the repo.
 
 **6/**
-Things that surprised me:
-• A 128x128 systolic array runs these decode GEMVs at 0.3-1.5% utilization (SCALE-Sim). The engine has to be 16 rows wide.
-• SRAM expert caches are a dead end. They need GBs per chip.
-• Engram's 203 GB of tables serve ~23 MB/s of lookups. Put them in LPDDR.
-• An adversarial review caught two of my own mistakes, including a layout "inefficiency" in their engine that wasn't real. Both are fixed, and the list is in the repo.
+Win #3 is that it compounds. Once the waiting is gone, bandwidth finally pays: Rubin with that execution model, or MDA-1 with HBM4, projects ~6,100 tok/s/user, 3.5x today. [HBM sweep]
 
 **7/**
-Everything is open and reproducible: simulator, calibration, joint Monte Carlo, ablation and router RTL. `make reproduce`.
+Things I learned along the way:
+• A classic 128x128 systolic array runs these decode GEMVs at 0.3-1.5% utilization (SCALE-Sim). The right engine is 16 rows wide.
+• Engram's 203 GB of tables only need ~23 MB/s. They belong in cheap LPDDR, not HBM.
+• The model reproduces DeepSeek's published 552B params and 890 B/token KV straight from the checkpoint.
+• It held up through two rounds of adversarial review.
 
-→ https://github.com/benblaine/dsv41-accel-study
+**8/**
+Everything is open and reproducible: simulator, calibration against Baseten's numbers, Monte Carlo, ablation, router RTL. `make reproduce`.
+
+→ https://github.com/Aercrist/dsv41-accel-study
 
 ## LinkedIn
 
-Baseten open-sourced deepseek-ultrafast, a hand-tuned engine that decodes DeepSeek-V4.1-Flash at 1,740 tokens/s per user on 4x GB300. I used it as the reference workload for a hardware study, and the answer surprised me.
+DeepSeek-V4.1-Flash decode has roughly 2x headroom, and custom silicon can capture it at a fraction of the cost per token.
 
-About half of every decode step is fixed per-stage latency, not memory bandwidth. A dataflow-style execution model removes most of it: on the same GPUs, the model projects 2.1x the speed. A custom decode ASIC built around that execution model reaches the same speed at the same memory bandwidth. Its advantage is cost and energy per token at volume, not raw speed.
+Baseten open-sourced deepseek-ultrafast, a hand-tuned engine that decodes DeepSeek-V4.1-Flash at 1,740 tokens/s per user on 4x GB300. I used it as the reference workload for a hardware study and modeled where every microsecond goes.
 
-The simulator, calibration against Baseten's published numbers, the joint uncertainty analysis and a verified RTL block are all in the repo, reproducible with one command. All projections are modeled.
+About half of every decode step is waiting between dependent steps, not moving weights. A dataflow-style execution model removes that waiting:
+
+- On the same GPUs, the model projects 2.1x the speed with no new hardware.
+- MDA-1, a decode ASIC built around that execution model, delivers the same 2.1x at about 3x lower cost per token and 4x the tokens per joule.
+- Paired with next-generation HBM4, the projection climbs to about 3.5x today's speed.
+
+The simulator, its calibration against Baseten's published numbers, a joint uncertainty analysis and a verified RTL block are all in the repo, reproducible with one command: https://github.com/Aercrist/dsv41-accel-study
 
 ## Reply to the Baseten team
 
@@ -57,7 +67,7 @@ Hi Baseten team, thanks for open-sourcing deepseek-ultrafast. It's the most legi
 
 I built an op-level performance model from the engine's source and V4.1's checkpoint headers. It accounts for PDL, the producer-pushed NVLS all-reduces, side streams, and what the `sgl` tensor maps actually stream. Fitted to your README's step times (3.30 ms TP4, 2.71 ms TP8), it attributes ~1.9 ms of each TP4 step (56%; 43%-62% across alternative fits) to dependent-stage latency, not weight streaming.
 
-Three things you might find useful:
+The headline for you: the model sees about 2.1x of decode headroom on the GPUs you already run. Three things you might find useful:
 
 1. **Software projection.** On the same 4x GB300 the model projects about 3,596 tok/s/user from:
    - one persistent program with flag hand-offs, assuming a stage hand-off can get near 1 µs (the least certain part);
@@ -67,4 +77,4 @@ Three things you might find useful:
 2. **TP8 scaling.** The model attributes the weak TP4→TP8 scaling to per-stage latency, not bandwidth. At TP8 only w2's 64-row padding and the shared expert's padding are streamed, a few percent.
 3. **One profile settles it.** `tools/model_vs_nsys.py` prints the model's prediction in the exact groups of your `tools/nsys_breakdown.py`. One `nsys` run would confirm or kill the diagnosis. I'd love to compare notes if you're up for sharing a breakdown.
 
-The ASIC side (MDA-1) is a simulated projection. It matches that software projection and wins only on $/token and W/token at volume. Everything is here: https://github.com/benblaine/dsv41-accel-study
+The ASIC side, MDA-1, is a simulated projection: same speed as that software, at lower $/token and W/token at volume. Everything is here: https://github.com/Aercrist/dsv41-accel-study
