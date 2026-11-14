@@ -66,6 +66,6 @@ It says about 1.9 ms of each 3.30 ms step is fixed per-layer latency: roughly 44
 Two things you might find useful:
 
 1. The model puts the software ceiling on the same 4x GB300 at about 3,151 tok/s: persistent kernel, cross-layer L2 prefetch of the next layers' attention/shared weights while experts stream, and a ~2.4 µs all-reduce. The prefetch piece is the least obvious. Next-layer dense weights can stream during the current layer's gate→expert gap.
-2. One `nsys` run through your `tools/nsys_breakdown.py` would confirm or kill the diagnosis. I'd love to compare notes if you're up for sharing a breakdown.
+2. One `nsys` run through your `tools/nsys_breakdown.py` would confirm or kill the diagnosis. `tools/model_vs_nsys.py` in the repo prints our prediction in your exact kernel groups (MoE ~39%, all-reduce / gather ~20%, dense projections ~19% of the step). I'd love to compare notes if you're up for sharing a breakdown.
 
 The ASIC side, MDA-1, is a simulated projection: 4,040 tok/s/user on 4 chips at iso-HBM bandwidth. Everything is in the repo: https://github.com/benblaine/dsv41-accel-study

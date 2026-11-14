@@ -75,7 +75,8 @@ Modeled projection, not silicon. The GPU model is calibrated on two points from 
 prompt. MDA-1's latencies and energies are bottom-up assumptions (sourced where possible, swept where
 not). Prefill is **not** calibrated: the measured prefill is 5.5x slower than our model. GPU power,
 GPU purchase price, MAC area and NRE are assumptions. One `nsys` profile of deepseek-ultrafast would
-confirm or refute the fixed-latency diagnosis. Full list: [docs/05_limitations.md](docs/05_limitations.md).
+confirm or refute the fixed-latency diagnosis: `python3 -m tools.model_vs_nsys` prints our per-group prediction in the
+exact groups of the engine's own `tools/nsys_breakdown.py`. Full list: [docs/05_limitations.md](docs/05_limitations.md).
 
 ## Layout
 
@@ -87,7 +88,7 @@ experiments/ one script per study; run_all.py drives them
 results/     generated JSON + figures
 rtl/         MoE top-k router + testbench
 docs/        01 workload · 02 rationale · 03 architecture · 04 results · 05 limitations · 06 simulator · sources
-tools/       fetch_checkpoint_manifest.py (network; regenerates data/checkpoint_manifest.csv)
+tools/       fetch_checkpoint_manifest.py (network; regenerates the manifest), model_vs_nsys.py (profile comparison)
 POST.md      draft thread and note to the Baseten team
 ```
 

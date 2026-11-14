@@ -56,6 +56,7 @@ class StepResult:
     hbm_bytes: float
     breakdown: dict = field(default_factory=dict)  # critical-path time by cause
     by_category: dict = field(default_factory=dict)  # critical-path time by op category
+    segments: dict = field(default_factory=dict)  # op index -> critical-path time attributed to it
 
 
 def _op_costs(op: Op, hw: Hardware, hit_rate: float):
@@ -210,8 +211,8 @@ def simulate_step(ops: list[Op], hw: Hardware, hit_rate: float = 0.0) -> StepRes
     step = max(ends) + hw.step_overhead
     timings = [OpTiming(o, starts[i], ends[i], fetch_done[i], costs[i][3], costs[i][4], costs[i][5], hbm_bytes_op[i])
                for i, o in enumerate(ops)]
-    breakdown, by_cat = _critical_path(timings, costs, deps, hw.step_overhead)
-    return StepResult(step, timings, busy / step if step else 0.0, sum(hbm_bytes_op), breakdown, by_cat)
+    breakdown, by_cat, segs = _critical_path(timings, costs, deps, hw.step_overhead)
+    return StepResult(step, timings, busy / step if step else 0.0, sum(hbm_bytes_op), breakdown, by_cat, segs)
 
 
 def _buffer_ready(issued: dict[int, float], ends, cap: float, nbytes: float, t0: float) -> float:
@@ -240,6 +241,7 @@ def _critical_path(timings: list[OpTiming], costs, deps, step_ovh: float):
     or the compute-issue front) and attribute every segment of the step to one cause."""
     breakdown = {"overhead": step_ovh, "collective": 0.0, "memory": 0.0, "compute": 0.0}
     by_cat: dict[str, float] = {}
+    segs: dict[int, float] = {}
     i = max(range(len(timings)), key=lambda k: timings[k].end)
     T = timings[i].end
     while i is not None:
@@ -268,6 +270,7 @@ def _critical_path(timings: list[OpTiming], costs, deps, step_ovh: float):
         breakdown["memory"] += mem
         breakdown["compute"] += rest - mem
         by_cat[tm.op.category] = by_cat.get(tm.op.category, 0.0) + seg
+        segs[i] = segs.get(i, 0.0) + seg
         T = prev_T
         i = prev
-    return breakdown, by_cat
+    return breakdown, by_cat, segs

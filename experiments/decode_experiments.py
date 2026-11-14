@@ -58,6 +58,16 @@ def calibration_report() -> dict:
         wl = DecodeWorkload(verify_head=REP["configs"][k]["verify_head"])
         decomp[k] = run(hw, wl)
     out["decomposition"] = {k: v["breakdown_ms"] for k, v in decomp.items()}
+    # prediction in deepseek-ultrafast's own nsys_breakdown.py groups (tools/model_vs_nsys.py)
+    import collections
+    from tools.model_vs_nsys import group
+    ops4 = decode_step(spec(), DecodeWorkload(verify_head="fp8"))
+    r4 = simulate_step(ops4, platform("gpu_tp4"))
+    acc = collections.defaultdict(float)
+    for i, tseg in r4.segments.items():
+        acc[group(ops4[i])] += tseg
+    out["nsys_groups_tp4"] = [{"group": g, "us": v * 1e6, "share": v / r4.step_time}
+                              for g, v in sorted(acc.items(), key=lambda kv: -kv[1])]
     out["hbm_busy"] = {k: v["hbm_busy"] for k, v in decomp.items()}
     out["n_kernels_per_step"] = sum(o.n_kernels for o in decode_step(spec(), DecodeWorkload()))
     out["n_collectives_per_step"] = sum(1 for o in decode_step(spec(), DecodeWorkload()) if o.coll > 0)
@@ -273,7 +283,7 @@ def hbm_sweep() -> dict:
     ax.set_xlabel("HBM bandwidth per chip (TB/s)")
     ax.set_ylabel("tok/s/user (batch 1, 4 chips)")
     ax.set_title("Who converts memory bandwidth into speed (simulated)")
-    ax.legend(fontsize=7)
+    ax.legend(fontsize=7, loc="lower right")
     fig.savefig(FIG / "fig_hbm_sweep.png")
     plt.close(fig)
     return out
@@ -468,7 +478,9 @@ def ablation() -> dict:
     ax.bar(range(len(vals)), vals, color=[PALETTE["gpu"]] + ["#d98880"] * (len(vals) - 2) + [PALETTE["asic"]])
     for i, v in enumerate(vals):
         ax.text(i, v + 50, f"{v:,.0f}", ha="center", fontsize=7)
-    ax.set_xticks(range(len(vals)), [o["step"].split()[0] for o in out])
+    short = ["GPU today\n(calibrated)", "no kernel\nlaunches", "static\npipeline", "+ weight\nprefetch", "+ HW MoE\nrouter",
+             "+ fast\nall-reduce", "MDA-1"]
+    ax.set_xticks(range(len(vals)), [f'{o["step"].split()[0]}\n{s}' for o, s in zip(out, short)], fontsize=7)
     ax.set_ylabel("tok/s/user (batch 1, 4 chips, 8 TB/s each)")
     ax.set_title("Ablation: which architectural feature buys what (simulated)")
     fig.savefig(FIG / "fig_ablation.png")
