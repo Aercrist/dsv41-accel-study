@@ -1,7 +1,7 @@
 {
  "calibration": {
-  "hbm_eff": 0.867585,
-  "kernel_overhead_us": 2.422208,
+  "hbm_eff": 0.774152,
+  "kernel_overhead_us": 3.708603,
   "eff_prior": 0.935,
   "predicted_ms": {
    "gb300_tp4": 3.3,
@@ -14,189 +14,236 @@
   "loo": {
    "b300_tp8": {
     "fit_on": "gb300_tp4",
-    "kernel_overhead_us": 2.592901,
-    "predicted_ms": 2.7527,
+    "kernel_overhead_us": 4.436574,
+    "predicted_ms": 2.811736,
     "measured_ms": 2.71,
-    "error_pct": 1.575648
+    "error_pct": 3.754102
    },
    "gb300_tp4": {
     "fit_on": "b300_tp8",
-    "kernel_overhead_us": 2.520158,
-    "predicted_ms": 3.2573,
+    "kernel_overhead_us": 4.174367,
+    "predicted_ms": 3.198264,
     "measured_ms": 3.3,
-    "error_pct": -1.293941
+    "error_pct": -3.082914
    }
   },
   "decomposition": {
    "gb300_tp4": {
-    "overhead": 1.425836,
-    "collective": 0.484361,
-    "memory": 1.368776,
-    "compute": 0.021027
+    "overhead": 1.442938,
+    "collective": 0.214895,
+    "memory": 1.621001,
+    "compute": 0.021166
    },
    "b300_tp8": {
-    "overhead": 1.425836,
-    "collective": 0.486687,
-    "memory": 0.781392,
-    "compute": 0.016085
+    "overhead": 1.442938,
+    "collective": 0.216348,
+    "memory": 1.034451,
+    "compute": 0.016264
    }
   },
+  "hbm_busy": {
+   "gb300_tp4": 0.497611,
+   "b300_tp8": 0.387707
+  },
+  "gb_per_gpu": {
+   "gb300_tp4": 10.169983,
+   "b300_tp8": 6.263102
+  },
+  "n_kernels_per_step": 388,
+  "n_collectives_per_step": 86,
+  "stages_per_block": 9.023256,
   "nsys_groups_tp4": [
    {
     "group": "MoE (gate + route + experts)",
-    "us": 1302.211262,
-    "share": 0.394609
-   },
-   {
-    "group": "all-reduce / gather",
-    "us": 647.01389,
-    "share": 0.196065
+    "us": 1663.169014,
+    "share": 0.503991
    },
    {
     "group": "dense projections (tcgen05: wqkv, wq_b, wo_a, wo_b)",
-    "us": 615.902172,
-    "share": 0.186637
+    "us": 849.284957,
+    "share": 0.257359
    },
    {
-    "group": "mHC side branch (dots, mix, prep)",
-    "us": 216.438176,
-    "share": 0.065587
-   },
-   {
-    "group": "indexer / top-k / compressor / rope",
-    "us": 182.10353,
-    "share": 0.055183
-   },
-   {
-    "group": "mma.sync GEMVs (drafter blocks, main_proj)",
-    "us": 134.650401,
-    "share": 0.040803
+    "group": "all-reduce / gather",
+    "us": 212.524,
+    "share": 0.064401
    },
    {
     "group": "attention",
-    "us": 102.131005,
-    "share": 0.030949
+    "us": 154.216061,
+    "share": 0.046732
    },
    {
-    "group": "verify head + sampler + accept",
-    "us": 36.153694,
-    "share": 0.010956
+    "group": "mma.sync GEMVs (drafter blocks, main_proj)",
+    "us": 150.323403,
+    "share": 0.045553
+   },
+   {
+    "group": "indexer / top-k / compressor / rope",
+    "us": 125.311805,
+    "share": 0.037973
    },
    {
     "group": "draft phase (Markov head, FP8 draft head)",
-    "us": 35.093704,
-    "share": 0.010634
+    "us": 40.834545,
+    "share": 0.012374
+   },
+   {
+    "group": "verify head + sampler + accept",
+    "us": 40.263181,
+    "share": 0.012201
    },
    {
     "group": "engram",
-    "us": 25.877819,
-    "share": 0.007842
+    "us": 34.965374,
+    "share": 0.010596
+   },
+   {
+    "group": "mHC side branch (dots, mix, prep)",
+    "us": 25.396577,
+    "share": 0.007696
    },
    {
     "group": "other",
-    "us": 2.424421,
-    "share": 0.000735
+    "us": 3.711083,
+    "share": 0.001125
    }
   ],
-  "hbm_busy": {
-   "gb300_tp4": 0.421134,
-   "b300_tp8": 0.294264
-  },
-  "n_kernels_per_step": 587,
-  "n_collectives_per_step": 86,
   "loo_vs_eff_prior": [
    {
+    "eff": 0.65,
+    "kernel_overhead_us": 2.900297,
+    "pred_tp8_ms": 2.597042,
+    "err_pct": -4.168182
+   },
+   {
+    "eff": 0.7,
+    "kernel_overhead_us": 3.260335,
+    "pred_tp8_ms": 2.647353,
+    "err_pct": -2.311685
+   },
+   {
     "eff": 0.75,
-    "kernel_overhead_us": 2.051051,
-    "pred_tp8_ms": 2.617152,
-    "err_pct": -3.426124
+    "kernel_overhead_us": 3.572335,
+    "pred_tp8_ms": 2.690956,
+    "err_pct": -0.702724
+   },
+   {
+    "eff": 0.774,
+    "kernel_overhead_us": 3.707774,
+    "pred_tp8_ms": 2.709884,
+    "err_pct": -0.004273
    },
    {
     "eff": 0.8,
-    "kernel_overhead_us": 2.222209,
-    "pred_tp8_ms": 2.659969,
-    "err_pct": -1.846173
+    "kernel_overhead_us": 3.845329,
+    "pred_tp8_ms": 2.729108,
+    "err_pct": 0.705091
    },
    {
     "eff": 0.85,
-    "kernel_overhead_us": 2.373232,
-    "pred_tp8_ms": 2.697748,
-    "err_pct": -0.452098
-   },
-   {
-    "eff": 0.868,
-    "kernel_overhead_us": 2.423341,
-    "pred_tp8_ms": 2.710283,
-    "err_pct": 0.010453
+    "kernel_overhead_us": 4.086207,
+    "pred_tp8_ms": 2.762771,
+    "err_pct": 1.94728
    },
    {
     "eff": 0.9,
-    "kernel_overhead_us": 2.507474,
-    "pred_tp8_ms": 2.73133,
-    "err_pct": 0.78708
+    "kernel_overhead_us": 4.30032,
+    "pred_tp8_ms": 2.792694,
+    "err_pct": 3.051449
    },
    {
     "eff": 0.935,
-    "kernel_overhead_us": 2.592901,
-    "pred_tp8_ms": 2.7527,
-    "err_pct": 1.575648
-   },
-   {
-    "eff": 0.95,
-    "kernel_overhead_us": 2.627585,
-    "pred_tp8_ms": 2.761377,
-    "err_pct": 1.895818
+    "kernel_overhead_us": 4.436574,
+    "pred_tp8_ms": 2.811736,
+    "err_pct": 3.754102
    }
   ],
   "fit_sensitivity": [
    {
     "case": "baseline",
-    "hbm_eff": 0.867585,
-    "kernel_overhead_us": 2.422208,
-    "fixed_ms_tp4": 1.910197,
-    "fixed_share_tp4": 0.578847,
-    "asic_speedup_vs_measured": 2.380438
+    "hbm_eff": 0.774152,
+    "kernel_overhead_us": 3.708603,
+    "fixed_ms_tp4": 1.657833,
+    "fixed_share_tp4": 0.502374,
+    "at_bound": 0.0
    },
    {
-    "case": "collective latency 2.37 us",
-    "hbm_eff": 0.867585,
-    "kernel_overhead_us": 2.847847,
-    "fixed_ms_tp4": 1.910197,
-    "fixed_share_tp4": 0.578848,
-    "asic_speedup_vs_measured": 2.380438
+    "case": "all-reduce 5 us (typical)",
+    "hbm_eff": 0.774152,
+    "kernel_overhead_us": 3.118886,
+    "fixed_ms_tp4": 1.657833,
+    "fixed_share_tp4": 0.502374,
+    "at_bound": 0.0
    },
    {
-    "case": "collective latency 10 us",
-    "hbm_eff": 0.867585,
-    "kernel_overhead_us": 1.613009,
-    "fixed_ms_tp4": 1.910197,
-    "fixed_share_tp4": 0.578848,
-    "asic_speedup_vs_measured": 2.380438
+    "case": "all-reduce 10 us",
+    "hbm_eff": 0.774152,
+    "kernel_overhead_us": 1.997752,
+    "fixed_ms_tp4": 1.657833,
+    "fixed_share_tp4": 0.502374,
+    "at_bound": 0.0
    },
    {
-    "case": "+0.5 us per extra peer",
-    "hbm_eff": 0.672322,
-    "kernel_overhead_us": 1.588137,
-    "fixed_ms_tp4": 1.506597,
-    "fixed_share_tp4": 0.456545,
-    "asic_speedup_vs_measured": 2.380438
+    "case": "+0.5 us all-reduce per extra peer",
+    "hbm_eff": 0.599729,
+    "kernel_overhead_us": 2.256134,
+    "fixed_ms_tp4": 1.180275,
+    "fixed_share_tp4": 0.357659,
+    "at_bound": 0.0
    },
    {
     "case": "routing locality 0.5",
-    "hbm_eff": 0.592176,
-    "kernel_overhead_us": 2.297672,
-    "fixed_ms_tp4": 1.837094,
-    "fixed_share_tp4": 0.556695,
-    "asic_speedup_vs_measured": 2.380438
+    "hbm_eff": 0.534444,
+    "kernel_overhead_us": 3.568612,
+    "fixed_ms_tp4": 1.603517,
+    "fixed_share_tp4": 0.485914,
+    "at_bound": 0.0
    },
    {
     "case": "context 32K",
-    "hbm_eff": 0.867933,
-    "kernel_overhead_us": 2.422319,
-    "fixed_ms_tp4": 1.910262,
-    "fixed_share_tp4": 0.578867,
-    "asic_speedup_vs_measured": 2.380438
+    "hbm_eff": 0.774063,
+    "kernel_overhead_us": 3.70408,
+    "fixed_ms_tp4": 1.656078,
+    "fixed_share_tp4": 0.501842,
+    "at_bound": 0.0
+   },
+   {
+    "case": "run-to-run: TP4 3.24, TP8 2.74",
+    "hbm_eff": 0.913114,
+    "kernel_overhead_us": 4.197957,
+    "fixed_ms_tp4": 1.847703,
+    "fixed_share_tp4": 0.570279,
+    "at_bound": 0.0
+   },
+   {
+    "case": "run-to-run: TP4 3.37, TP8 2.69",
+    "hbm_eff": 0.671899,
+    "kernel_overhead_us": 3.244998,
+    "fixed_ms_tp4": 1.477955,
+    "fixed_share_tp4": 0.438562,
+    "at_bound": 0.0
+   },
+   {
+    "case": "run-to-run: TP4 3.24, TP8 2.69",
+    "hbm_eff": 0.830312,
+    "kernel_overhead_us": 3.840182,
+    "fixed_ms_tp4": 1.708886,
+    "fixed_share_tp4": 0.527434,
+    "at_bound": 0.0
+   },
+   {
+    "case": "run-to-run: TP4 3.37, TP8 2.74",
+    "hbm_eff": 0.725107,
+    "kernel_overhead_us": 3.602796,
+    "fixed_ms_tp4": 1.61678,
+    "fixed_share_tp4": 0.479757,
+    "at_bound": 0.0
    }
+  ],
+  "fixed_share_range": [
+   0.357659,
+   0.570279
   ]
  },
  "comparison": {
@@ -207,34 +254,34 @@
     "batch": 1,
     "context": 2600,
     "step_ms": 3.3,
-    "tok_s_user": 1696.969659,
-    "tok_s_system": 1696.969659,
-    "tok_s_per_chip": 424.242415,
-    "hbm_busy": 0.421134,
-    "hbm_gb_per_chip": 9.645758,
+    "tok_s_user": 1696.969697,
+    "tok_s_system": 1696.969697,
+    "tok_s_per_chip": 424.242424,
+    "hbm_busy": 0.497611,
+    "hbm_gb_per_chip": 10.169983,
     "watts": 3360.0,
-    "tok_per_joule": 0.50505,
+    "tok_per_joule": 0.505051,
     "usd_per_hour": 38.0,
     "usd_per_mtok": 6.220238,
     "breakdown_ms": {
-     "overhead": 1.425836,
-     "collective": 0.484361,
-     "memory": 1.368776,
-     "compute": 0.021027
+     "overhead": 1.442938,
+     "collective": 0.214895,
+     "memory": 1.621001,
+     "compute": 0.021166
     },
     "by_category_ms": {
-     "head": 0.062441,
-     "collective": 0.647014,
-     "moe_routed": 1.175235,
-     "moe_shared": 0.054866,
-     "router": 0.127383,
-     "mhc": 0.232671,
-     "attn_proj": 0.661641,
-     "attn_core": 0.109435,
-     "indexer": 0.182104,
-     "engram": 0.025878,
-     "misc": 0.002424,
-     "draft": 0.018908
+     "head": 0.070717,
+     "collective": 0.212524,
+     "moe_routed": 1.482708,
+     "moe_shared": 0.065849,
+     "router": 0.185501,
+     "mhc": 0.027301,
+     "attn_proj": 0.912473,
+     "attn_core": 0.165379,
+     "indexer": 0.125312,
+     "engram": 0.034965,
+     "misc": 0.003711,
+     "draft": 0.013558
     },
     "energy_parts_j": {
      "board": 11.088
@@ -248,34 +295,34 @@
     "batch": 1,
     "context": 2600,
     "step_ms": 2.71,
-    "tok_s_user": 2066.42068,
-    "tok_s_system": 2066.42068,
-    "tok_s_per_chip": 258.302585,
-    "hbm_busy": 0.294264,
-    "hbm_gb_per_chip": 5.327322,
+    "tok_s_user": 2066.420664,
+    "tok_s_system": 2066.420664,
+    "tok_s_per_chip": 258.302583,
+    "hbm_busy": 0.387707,
+    "hbm_gb_per_chip": 6.263102,
     "watts": 5280.0,
     "tok_per_joule": 0.391368,
     "usd_per_hour": 76.0,
     "usd_per_mtok": 10.21627,
     "breakdown_ms": {
-     "overhead": 1.425836,
-     "collective": 0.486687,
-     "memory": 0.781392,
-     "compute": 0.016085
+     "overhead": 1.442938,
+     "collective": 0.216348,
+     "memory": 1.034451,
+     "compute": 0.016264
     },
     "by_category_ms": {
-     "head": 0.05187,
-     "collective": 0.648465,
-     "moe_routed": 0.710608,
-     "moe_shared": 0.028502,
-     "router": 0.128288,
-     "mhc": 0.23362,
-     "attn_proj": 0.576603,
-     "attn_core": 0.109623,
-     "indexer": 0.18317,
-     "engram": 0.020427,
-     "misc": 0.002423,
-     "draft": 0.0164
+     "head": 0.058872,
+     "collective": 0.213975,
+     "moe_routed": 1.030257,
+     "moe_shared": 0.040362,
+     "router": 0.186516,
+     "mhc": 0.028365,
+     "attn_proj": 0.817172,
+     "attn_core": 0.165597,
+     "indexer": 0.125571,
+     "engram": 0.028856,
+     "misc": 0.00371,
+     "draft": 0.010747
     },
     "energy_parts_j": {
      "board": 14.3088
@@ -284,315 +331,412 @@
     "usd_per_mtok_owned": 1.468231
    },
    {
-    "platform": "4x GB300, fused megakernel (projected)",
+    "platform": "4x GB300, barrier-synced persistent kernel (projected)",
     "n_chips": 4,
     "batch": 1,
     "context": 2600,
-    "step_ms": 2.465164,
-    "tok_s_user": 2271.654168,
-    "tok_s_system": 2271.654168,
-    "tok_s_per_chip": 567.913542,
-    "hbm_busy": 0.563753,
-    "hbm_gb_per_chip": 9.645758,
+    "step_ms": 2.249062,
+    "tok_s_user": 2489.926696,
+    "tok_s_system": 2489.926696,
+    "tok_s_per_chip": 622.481674,
+    "hbm_busy": 0.730134,
+    "hbm_gb_per_chip": 10.169983,
     "watts": 3360.0,
-    "tok_per_joule": 0.676088,
+    "tok_per_joule": 0.74105,
     "usd_per_hour": 38.0,
-    "usd_per_mtok": 4.646638,
+    "usd_per_mtok": 4.239304,
     "breakdown_ms": {
-     "overhead": 0.591,
-     "collective": 0.484361,
-     "memory": 1.368776,
-     "compute": 0.021027
+     "overhead": 0.392,
+     "collective": 0.214895,
+     "memory": 1.621001,
+     "compute": 0.021166
     },
     "by_category_ms": {
-     "head": 0.056752,
-     "collective": 0.524704,
-     "moe_routed": 1.052925,
-     "moe_shared": 0.054866,
-     "router": 0.066228,
-     "mhc": 0.110361,
-     "attn_proj": 0.417021,
-     "attn_core": 0.04828,
-     "indexer": 0.10246,
-     "engram": 0.017345,
+     "head": 0.059883,
+     "collective": 0.212524,
+     "moe_routed": 1.249768,
+     "moe_shared": 0.065849,
+     "router": 0.069031,
+     "mhc": 0.027301,
+     "attn_proj": 0.446593,
+     "attn_core": 0.048909,
+     "indexer": 0.038637,
+     "engram": 0.018714,
      "misc": 0.001002,
-     "draft": 0.01322
+     "draft": 0.01085
     },
     "energy_parts_j": {
-     "board": 8.282951
+     "board": 7.556849
     },
     "key": "gpu_mk_tp4",
-    "usd_per_mtok_owned": 0.67872
+    "usd_per_mtok_owned": 0.619222
    },
    {
-    "platform": "4x GB300, ideal software (bound)",
+    "platform": "4x GB300, dataflow-style software (projected)",
     "n_chips": 4,
     "batch": 1,
     "context": 2600,
-    "step_ms": 1.776942,
-    "tok_s_user": 3151.48193,
-    "tok_s_system": 3151.48193,
-    "tok_s_per_chip": 787.870482,
-    "hbm_busy": 0.782098,
-    "hbm_gb_per_chip": 9.645758,
+    "step_ms": 1.606534,
+    "tok_s_user": 3485.76588,
+    "tok_s_system": 3485.76588,
+    "tok_s_per_chip": 871.44147,
+    "hbm_busy": 0.969548,
+    "hbm_gb_per_chip": 9.64662,
     "watts": 3360.0,
-    "tok_per_joule": 0.937941,
+    "tok_per_joule": 1.03743,
     "usd_per_hour": 38.0,
-    "usd_per_mtok": 3.349394,
+    "usd_per_mtok": 3.028188,
     "breakdown_ms": {
-     "overhead": 0.472,
-     "collective": 0.234511,
-     "memory": 1.049404,
-     "compute": 0.021027
+     "overhead": 0.238,
+     "collective": 0.130505,
+     "memory": 1.216862,
+     "compute": 0.021166
     },
     "by_category_ms": {
-     "head": 0.03291,
-     "collective": 0.212524,
-     "moe_routed": 1.008647,
-     "moe_shared": 0.044289,
-     "router": 0.043395,
-     "mhc": 0.092693,
-     "attn_proj": 0.177759,
-     "attn_core": 0.103756,
-     "indexer": 0.047816,
-     "engram": 0.00427,
-     "misc": 0.001,
-     "draft": 0.007883
+     "head": 0.049716,
+     "collective": 0.129104,
+     "moe_routed": 1.116951,
+     "moe_shared": 0.022789,
+     "router": 0.021895,
+     "mhc": 0.049693,
+     "attn_proj": 0.116578,
+     "attn_core": 0.059129,
+     "indexer": 0.025455,
+     "engram": 0.006997,
+     "misc": 0.0005,
+     "draft": 0.007725
     },
     "energy_parts_j": {
-     "board": 5.970524
+     "board": 5.397953
     },
-    "key": "gpu_ideal_tp4",
-    "usd_per_mtok_owned": 0.489235
+    "key": "gpu_df_tp4",
+    "usd_per_mtok_owned": 0.442318
    },
    {
-    "platform": "MDA-1 ASIC x4 (proposed)",
+    "platform": "MDA-1 x4 (proposed)",
     "n_chips": 4,
     "batch": 1,
     "context": 2600,
-    "step_ms": 1.3863,
-    "tok_s_user": 4039.530656,
-    "tok_s_system": 4039.530656,
-    "tok_s_per_chip": 1009.882664,
-    "hbm_busy": 0.966375,
-    "hbm_gb_per_chip": 9.645739,
-    "watts": 1646.620817,
-    "tok_per_joule": 2.453225,
-    "usd_per_hour": 3.49474,
-    "usd_per_mtok": 0.240315,
+    "step_ms": 1.608222,
+    "tok_s_user": 3482.105775,
+    "tok_s_system": 3482.105775,
+    "tok_s_per_chip": 870.526444,
+    "hbm_busy": 0.968528,
+    "hbm_gb_per_chip": 9.646601,
+    "watts": 1816.406888,
+    "tok_per_joule": 1.91703,
+    "usd_per_hour": 3.523077,
+    "usd_per_mtok": 0.281046,
     "breakdown_ms": {
      "overhead": 0.0968,
-     "collective": 0.142361,
-     "memory": 0.82925,
-     "compute": 0.317889
+     "collective": 0.130505,
+     "memory": 1.062024,
+     "compute": 0.318893
     },
     "by_category_ms": {
-     "head": 0.043472,
+     "head": 0.05144,
      "collective": 0.129104,
-     "moe_routed": 0.9482,
+     "moe_routed": 1.102103,
      "moe_shared": 0.020774,
      "router": 0.009569,
-     "mhc": 0.021301,
-     "attn_proj": 0.128536,
-     "attn_core": 0.047309,
-     "indexer": 0.02229,
-     "engram": 0.006763,
+     "mhc": 0.021435,
+     "attn_proj": 0.18211,
+     "attn_core": 0.054919,
+     "indexer": 0.017637,
+     "engram": 0.009706,
      "misc": 0.0002,
-     "draft": 0.006781
+     "draft": 0.007225
     },
     "energy_parts_j": {
-     "hbm": 1.234655,
-     "sram": 0.154332,
-     "compute": 0.060584,
-     "links": 0.001348,
+     "hbm": 1.234765,
+     "sram": 0.154346,
+     "compute": 0.060988,
+     "links": 0.001254,
      "host_dram": 1.2e-05,
-     "static": 0.83178
+     "noc": 0.154346,
+     "static": 0.964933,
+     "power_delivery_loss": 0.350542
     },
     "key": "asic",
-    "usd_per_mtok_owned": 0.240315
+    "usd_per_mtok_owned": 0.281046
    },
    {
     "platform": "16x Alveo V80 FPGA",
     "n_chips": 16,
     "batch": 1,
     "context": 2600,
-    "step_ms": 4.74972,
-    "tok_s_user": 1179.016813,
-    "tok_s_system": 1179.016813,
-    "tok_s_per_chip": 73.688551,
-    "hbm_busy": 0.976987,
-    "hbm_gb_per_chip": 3.044112,
+    "step_ms": 4.747211,
+    "tok_s_user": 1179.639942,
+    "tok_s_system": 1179.639942,
+    "tok_s_per_chip": 73.727496,
+    "hbm_busy": 0.977849,
+    "hbm_gb_per_chip": 3.045189,
     "watts": 2432.0,
-    "tok_per_joule": 0.484793,
+    "tok_per_joule": 0.485049,
     "usd_per_hour": 5.777581,
-    "usd_per_mtok": 1.361205,
+    "usd_per_mtok": 1.360486,
     "breakdown_ms": {
      "overhead": 0.477,
-     "collective": 0.602469,
-     "memory": 2.752865,
-     "compute": 0.917387
+     "collective": 0.532978,
+     "memory": 2.799197,
+     "compute": 0.938037
     },
     "by_category_ms": {
      "head": 0.107505,
      "collective": 0.52792,
-     "moe_routed": 2.70795,
+     "moe_routed": 2.762156,
      "moe_shared": 0.089042,
      "router": 0.098238,
      "mhc": 0.212788,
      "attn_proj": 0.59894,
-     "attn_core": 0.218519,
-     "indexer": 0.152965,
+     "attn_core": 0.207723,
+     "indexer": 0.107046,
      "engram": 0.015663,
      "misc": 0.001,
      "draft": 0.014189
     },
     "energy_parts_j": {
-     "board": 11.55132
+     "board": 11.545218
     },
     "key": "fpga",
-    "usd_per_mtok_owned": 1.361205
+    "usd_per_mtok_owned": 1.360486
    },
    {
     "platform": "4x Rubin, today's software (projected)",
     "n_chips": 4,
     "batch": 1,
     "context": 2600,
-    "step_ms": 2.410933,
-    "tok_s_user": 2322.751964,
-    "tok_s_system": 2322.751964,
-    "tok_s_per_chip": 580.687991,
-    "hbm_busy": 0.209612,
-    "hbm_gb_per_chip": 9.645758,
+    "step_ms": 2.337743,
+    "tok_s_user": 2395.472488,
+    "tok_s_system": 2395.472488,
+    "tok_s_per_chip": 598.868122,
+    "hbm_busy": 0.292682,
+    "hbm_gb_per_chip": 10.169983,
     "watts": 4320.0,
-    "tok_per_joule": 0.537674,
+    "tok_per_joule": 0.554508,
     "usd_per_hour": 38.0,
-    "usd_per_mtok": 4.544418,
+    "usd_per_mtok": 4.406461,
     "breakdown_ms": {
-     "overhead": 1.425836,
-     "collective": 0.47968,
-     "memory": 0.496449,
-     "compute": 0.008967
+     "overhead": 1.442938,
+     "collective": 0.210543,
+     "memory": 0.675237,
+     "compute": 0.009026
     },
     "by_category_ms": {
-     "head": 0.032056,
-     "collective": 0.642662,
-     "moe_routed": 0.559919,
-     "moe_shared": 0.019951,
-     "router": 0.112602,
-     "mhc": 0.217168,
-     "attn_proj": 0.505718,
-     "attn_core": 0.106092,
-     "indexer": 0.178096,
-     "engram": 0.018659,
-     "misc": 0.002423,
-     "draft": 0.015587
+     "head": 0.039503,
+     "collective": 0.208172,
+     "moe_routed": 0.803843,
+     "moe_shared": 0.027437,
+     "router": 0.170316,
+     "mhc": 0.011376,
+     "attn_proj": 0.752294,
+     "attn_core": 0.161946,
+     "indexer": 0.121452,
+     "engram": 0.027549,
+     "misc": 0.00371,
+     "draft": 0.010146
     },
     "energy_parts_j": {
-     "board": 10.415232
+     "board": 10.099051
     },
     "key": "rubin_tp4",
-    "usd_per_mtok_owned": 0.678039
+    "usd_per_mtok_owned": 0.657456
+   },
+   {
+    "platform": "4x Rubin, dataflow-style software (projected)",
+    "n_chips": 4,
+    "batch": 1,
+    "context": 2600,
+    "step_ms": 0.867879,
+    "tok_s_user": 6452.511344,
+    "tok_s_system": 6452.511344,
+    "tok_s_per_chip": 1613.127836,
+    "hbm_busy": 0.747806,
+    "hbm_gb_per_chip": 9.64662,
+    "watts": 4320.0,
+    "tok_per_joule": 1.493637,
+    "usd_per_hour": 38.0,
+    "usd_per_mtok": 1.635883,
+    "breakdown_ms": {
+     "overhead": 0.238,
+     "collective": 0.126153,
+     "memory": 0.4947,
+     "compute": 0.009026
+    },
+    "by_category_ms": {
+     "head": 0.015102,
+     "collective": 0.124752,
+     "moe_routed": 0.472749,
+     "moe_shared": 0.021868,
+     "router": 0.021746,
+     "mhc": 0.046347,
+     "attn_proj": 0.087645,
+     "attn_core": 0.049948,
+     "indexer": 0.019292,
+     "engram": 0.002077,
+     "misc": 0.0005,
+     "draft": 0.005854
+    },
+    "energy_parts_j": {
+     "board": 3.749238
+    },
+    "key": "rubin_df_tp4",
+    "usd_per_mtok_owned": 0.244078
    },
    {
     "platform": "MDA-1 HBM4 x4 (projected)",
     "n_chips": 4,
     "batch": 1,
     "context": 2600,
-    "step_ms": 0.823956,
-    "tok_s_user": 6796.480237,
-    "tok_s_system": 6796.480237,
-    "tok_s_per_chip": 1699.120059,
-    "hbm_busy": 0.81296,
-    "hbm_gb_per_chip": 9.645739,
-    "watts": 1986.319872,
-    "tok_per_joule": 3.421644,
-    "usd_per_hour": 3.734031,
-    "usd_per_mtok": 0.152613,
+    "step_ms": 0.801518,
+    "tok_s_user": 6986.738768,
+    "tok_s_system": 6986.738768,
+    "tok_s_per_chip": 1746.684692,
+    "hbm_busy": 0.809718,
+    "hbm_gb_per_chip": 9.646601,
+    "watts": 2520.684556,
+    "tok_per_joule": 2.771762,
+    "usd_per_hour": 4.33329,
+    "usd_per_mtok": 0.172282,
     "breakdown_ms": {
      "overhead": 0.0968,
-     "collective": 0.13768,
-     "memory": 0.271586,
-     "compute": 0.317889
+     "collective": 0.126153,
+     "memory": 0.259673,
+     "compute": 0.318893
     },
     "by_category_ms": {
      "head": 0.012604,
      "collective": 0.124752,
-     "moe_routed": 0.478341,
+     "moe_routed": 0.463059,
      "moe_shared": 0.020774,
      "router": 0.009569,
      "mhc": 0.021216,
-     "attn_proj": 0.089018,
-     "attn_core": 0.037967,
-     "indexer": 0.018783,
+     "attn_proj": 0.088954,
+     "attn_core": 0.037708,
+     "indexer": 0.011994,
      "engram": 0.003317,
      "misc": 0.0002,
-     "draft": 0.005414
+     "draft": 0.005372
     },
     "energy_parts_j": {
-     "hbm": 0.925991,
-     "sram": 0.154332,
-     "compute": 0.060584,
-     "links": 0.001348,
+     "hbm": 0.926074,
+     "sram": 0.154346,
+     "compute": 0.060988,
+     "links": 0.001254,
      "host_dram": 1.2e-05,
-     "static": 0.494374
+     "noc": 0.154346,
+     "static": 0.480911,
+     "power_delivery_loss": 0.242445
     },
     "key": "asic_hbm4",
-    "usd_per_mtok_owned": 0.152613
+    "usd_per_mtok_owned": 0.172282
    }
   ],
   "asic_area_mm2": {
    "hbm_phy_ctrl": 96.0,
    "sram": 128.0,
    "compute": 53.333333,
-   "serdes": 33.6,
+   "serdes": 50.4,
    "lpddr_phy": 12.0,
-   "noc_ctrl_misc": 80.733333,
-   "shoreline_floor": 448.0,
-   "total": 448.0,
-   "whitespace": 44.333333
+   "d2d_phy": 20.0,
+   "noc_ctrl_misc": 89.933333,
+   "shoreline_floor_per_die": 336.0,
+   "die_mm2": 336.0,
+   "dies": 2,
+   "total": 672.0,
+   "whitespace": 222.333333
   },
   "asic_unit_cost": {
-   "die": 207.193153,
+   "die": 270.848596,
    "hbm": 2880.0,
    "package_test": 2500,
    "host_dram": 256.0,
    "system_share": 8000,
    "nre_share": 15000.0,
-   "total": 28843.193153,
-   "area_mm2": 448.0,
-   "dies_per_wafer": 126.294908,
-   "yield": 0.649662
-  },
-  "breakeven_volume": {
-   "gpu_tp4@nre150M": 1497.188655,
-   "gpu_tp4@nre300M": 2994.37731,
-   "gpu_tp4@nre600M": 5988.75462,
-   "gpu_ideal_tp4@nre150M": 3209.804655,
-   "gpu_ideal_tp4@nre300M": 6419.60931,
-   "gpu_ideal_tp4@nre600M": 12839.21862
-  },
-  "asic_hbm4_area_mm2": {
-   "hbm_phy_ctrl": 120.0,
-   "sram": 128.0,
-   "compute": 53.333333,
-   "serdes": 33.6,
-   "lpddr_phy": 12.0,
-   "noc_ctrl_misc": 86.733333,
-   "shoreline_floor": 448.0,
-   "total": 448.0,
-   "whitespace": 14.333333
+   "total": 28906.848596,
+   "area_mm2": 672.0,
+   "die_mm2": 336.0,
+   "dies_per_wafer": 174.017638,
+   "yield": 0.721372
   },
   "asic_hbm4_unit_cost": {
-   "die": 207.193153,
-   "hbm": 4608.0,
+   "die": 270.848596,
+   "hbm": 9216.0,
    "package_test": 2500,
    "host_dram": 256.0,
    "system_share": 8000,
    "nre_share": 15000.0,
-   "total": 30571.193153,
-   "area_mm2": 448.0,
-   "dies_per_wafer": 126.294908,
-   "yield": 0.649662
+   "total": 35242.848596,
+   "area_mm2": 672.0,
+   "die_mm2": 336.0,
+   "dies_per_wafer": 174.017638,
+   "yield": 0.721372
+  },
+  "prefill_adder": {
+   "prefill_s": 0.091722,
+   "usd_per_mtok": 0.027503,
+   "output_tokens": 5142
+  },
+  "gpu_power_sweep": [
+   {
+    "load_fraction": 0.4,
+    "gpu_tok_per_joule": 0.757576,
+    "gpu_df_tok_per_joule": 1.556145,
+    "asic_ratio_vs_gpu": 2.530479,
+    "asic_ratio_vs_gpu_df": 1.231909
+   },
+   {
+    "load_fraction": 0.6,
+    "gpu_tok_per_joule": 0.505051,
+    "gpu_df_tok_per_joule": 1.03743,
+    "asic_ratio_vs_gpu": 3.795719,
+    "asic_ratio_vs_gpu_df": 1.847863
+   },
+   {
+    "load_fraction": 0.8,
+    "gpu_tok_per_joule": 0.378788,
+    "gpu_df_tok_per_joule": 0.778073,
+    "asic_ratio_vs_gpu": 5.060958,
+    "asic_ratio_vs_gpu_df": 2.463818
+   },
+   {
+    "load_fraction": 1.0,
+    "gpu_tok_per_joule": 0.30303,
+    "gpu_df_tok_per_joule": 0.622458,
+    "asic_ratio_vs_gpu": 6.326198,
+    "asic_ratio_vs_gpu_df": 3.079772
+   }
+  ],
+  "gpu_price_sweep": [
+   {
+    "purchase_usd_per_gpu": 25000,
+    "gpu_usd_per_mtok": 0.535104,
+    "gpu_df_usd_per_mtok": 0.260504,
+    "asic_ratio_vs_gpu": 1.903971,
+    "asic_ratio_vs_gpu_df": 0.926907
+   },
+   {
+    "purchase_usd_per_gpu": 45000,
+    "gpu_usd_per_mtok": 0.908571,
+    "gpu_df_usd_per_mtok": 0.442318,
+    "asic_ratio_vs_gpu": 3.232816,
+    "asic_ratio_vs_gpu_df": 1.573827
+   },
+   {
+    "purchase_usd_per_gpu": 65000,
+    "gpu_usd_per_mtok": 1.282037,
+    "gpu_df_usd_per_mtok": 0.624132,
+    "asic_ratio_vs_gpu": 4.561661,
+    "asic_ratio_vs_gpu_df": 2.220746
+   }
+  ],
+  "breakeven_volume": {
+   "gpu_tp4@nre150M": 1786.634949,
+   "gpu_tp4@nre300M": 3573.269899,
+   "gpu_tp4@nre600M": 7146.539797,
+   "gpu_df_tp4@nre150M": 4584.120231,
+   "gpu_df_tp4@nre300M": 9168.240461,
+   "gpu_df_tp4@nre600M": 18336.480923
   },
   "measured": {
    "gb300_tp4": {
@@ -603,111 +747,74 @@
     "tok_s": 2060,
     "step_ms": 2.71
    }
-  }
+  },
+  "roofline_tok_s_asic": 3595.255015
  },
  "strong_scaling": {
   "gpu_tp4": [
    {
     "n_chips": 2,
-    "tok_s_user": 1226.664964,
-    "step_ms": 4.565224,
-    "usd_per_mtok": 4.302542
+    "step_ms": 4.633896,
+    "tok_s_user": 1208.486306
    },
    {
     "n_chips": 4,
-    "tok_s_user": 1688.170709,
     "step_ms": 3.3172,
-    "usd_per_mtok": 6.252659
+    "tok_s_user": 1688.170746
    },
    {
     "n_chips": 8,
-    "tok_s_user": 2058.985642,
-    "step_ms": 2.719786,
-    "usd_per_mtok": 10.253161
+    "step_ms": 2.708851,
+    "tok_s_user": 2067.297074
    },
    {
     "n_chips": 16,
-    "tok_s_user": 2263.540163,
-    "step_ms": 2.474001,
-    "usd_per_mtok": 18.65318
+    "step_ms": 2.448994,
+    "tok_s_user": 2286.653332
    }
   ],
-  "gpu_mk_tp4": [
+  "gpu_df_tp4": [
    {
     "n_chips": 2,
-    "tok_s_user": 1501.18448,
-    "step_ms": 3.730388,
-    "usd_per_mtok": 3.515742
+    "step_ms": 3.027771,
+    "tok_s_user": 1849.545542
    },
    {
     "n_chips": 4,
-    "tok_s_user": 2255.914151,
-    "step_ms": 2.482364,
-    "usd_per_mtok": 4.679059
+    "step_ms": 1.606534,
+    "tok_s_user": 3485.76588
    },
    {
     "n_chips": 8,
-    "tok_s_user": 2970.9015,
-    "step_ms": 1.88495,
-    "usd_per_mtok": 7.105961
+    "step_ms": 1.035416,
+    "tok_s_user": 5408.45604
    },
    {
     "n_chips": 16,
-    "tok_s_user": 3416.37438,
-    "step_ms": 1.639165,
-    "usd_per_mtok": 12.358781
-   }
-  ],
-  "gpu_ideal_tp4": [
-   {
-    "n_chips": 2,
-    "tok_s_user": 1983.705049,
-    "step_ms": 2.823,
-    "usd_per_mtok": 2.660566
-   },
-   {
-    "n_chips": 4,
-    "tok_s_user": 3121.294917,
-    "step_ms": 1.794127,
-    "usd_per_mtok": 3.381787
-   },
-   {
-    "n_chips": 8,
-    "tok_s_user": 4280.666762,
-    "step_ms": 1.308207,
-    "usd_per_mtok": 4.931734
-   },
-   {
-    "n_chips": 16,
-    "tok_s_user": 4945.246519,
-    "step_ms": 1.132401,
-    "usd_per_mtok": 8.537941
+    "step_ms": 0.827228,
+    "tok_s_user": 6769.599187
    }
   ],
   "asic": [
    {
     "n_chips": 2,
-    "tok_s_user": 2146.552185,
-    "step_ms": 2.608835,
-    "usd_per_mtok": 0.226236
+    "step_ms": 3.029448,
+    "tok_s_user": 1848.521505
    },
    {
     "n_chips": 4,
-    "tok_s_user": 4039.530656,
-    "step_ms": 1.3863,
-    "usd_per_mtok": 0.240315
+    "step_ms": 1.608222,
+    "tok_s_user": 3482.105775
    },
    {
     "n_chips": 8,
-    "tok_s_user": 6464.460665,
-    "step_ms": 0.866275,
-    "usd_per_mtok": 0.298932
+    "step_ms": 0.939538,
+    "tok_s_user": 5960.377078
    },
    {
     "n_chips": 16,
-    "tok_s_user": 8121.933198,
-    "step_ms": 0.689491,
-    "usd_per_mtok": 0.471736
+    "step_ms": 0.71773,
+    "tok_s_user": 7802.375745
    }
   ]
  },
@@ -715,277 +822,250 @@
   "gpu_tp4": [
    {
     "batch": 1,
-    "tok_s_user": 1696.969659,
-    "tok_s_system": 1696.969659,
+    "tok_s_user": 1696.969697,
+    "tok_s_system": 1696.969697,
     "step_ms": 3.3,
-    "usd_per_mtok": 6.220238,
     "usd_per_mtok_owned": 0.908571,
-    "tok_per_joule": 0.50505,
-    "hbm_busy": 0.421134
+    "tok_per_joule": 0.505051,
+    "hbm_busy": 0.497611
    },
    {
     "batch": 2,
-    "tok_s_user": 1176.799933,
-    "tok_s_system": 2353.599866,
-    "step_ms": 4.758668,
-    "usd_per_mtok": 4.484856,
-    "usd_per_mtok_owned": 0.655089,
-    "tok_per_joule": 0.700476,
-    "hbm_busy": 0.4779
+    "tok_s_user": 1088.970859,
+    "tok_s_system": 2177.941718,
+    "step_ms": 5.14247,
+    "usd_per_mtok_owned": 0.707924,
+    "tok_per_joule": 0.648197,
+    "hbm_busy": 0.526272
    },
    {
     "batch": 4,
-    "tok_s_user": 885.969766,
-    "tok_s_system": 3543.879064,
-    "step_ms": 6.320757,
-    "usd_per_mtok": 2.978532,
-    "usd_per_mtok_owned": 0.435065,
-    "tok_per_joule": 1.054726,
-    "hbm_busy": 0.602903
+    "tok_s_user": 798.866484,
+    "tok_s_system": 3195.465937,
+    "step_ms": 7.009932,
+    "usd_per_mtok_owned": 0.482501,
+    "tok_per_joule": 0.951032,
+    "hbm_busy": 0.649852
    },
    {
     "batch": 8,
-    "tok_s_user": 643.634478,
-    "tok_s_system": 5149.075827,
-    "step_ms": 8.70059,
-    "usd_per_mtok": 2.04999,
-    "usd_per_mtok_owned": 0.299436,
-    "tok_per_joule": 1.532463,
-    "hbm_busy": 0.705306
+    "tok_s_user": 567.968063,
+    "tok_s_system": 4543.744503,
+    "step_ms": 9.859709,
+    "usd_per_mtok_owned": 0.339327,
+    "tok_per_joule": 1.352305,
+    "hbm_busy": 0.745881
    },
    {
     "batch": 16,
-    "tok_s_user": 486.753043,
-    "tok_s_system": 7788.048681,
-    "step_ms": 11.504807,
-    "usd_per_mtok": 1.355353,
-    "usd_per_mtok_owned": 0.197972,
-    "tok_per_joule": 2.317872,
-    "hbm_busy": 0.767639
+    "tok_s_user": 424.076819,
+    "tok_s_system": 6785.229109,
+    "step_ms": 13.205155,
+    "usd_per_mtok_owned": 0.227231,
+    "tok_per_joule": 2.019413,
+    "hbm_busy": 0.802482
    },
    {
     "batch": 32,
-    "tok_s_user": 410.875768,
-    "tok_s_system": 13148.024561,
-    "step_ms": 13.629424,
-    "usd_per_mtok": 0.802824,
-    "usd_per_mtok_owned": 0.117266,
-    "tok_per_joule": 3.913103,
-    "hbm_busy": 0.787817
+    "tok_s_user": 356.65221,
+    "tok_s_system": 11412.870727,
+    "step_ms": 15.701571,
+    "usd_per_mtok_owned": 0.135095,
+    "tok_per_joule": 3.396688,
+    "hbm_busy": 0.820802
    },
    {
     "batch": 64,
-    "tok_s_user": 378.599203,
-    "tok_s_system": 24230.348972,
-    "step_ms": 14.791368,
-    "usd_per_mtok": 0.435634,
-    "usd_per_mtok_owned": 0.063632,
-    "tok_per_joule": 7.211413,
-    "hbm_busy": 0.770331
+    "tok_s_user": 330.675812,
+    "tok_s_system": 21163.251974,
+    "step_ms": 16.935015,
+    "usd_per_mtok_owned": 0.072853,
+    "tok_per_joule": 6.298587,
+    "hbm_busy": 0.807172
    },
    {
     "batch": 128,
-    "tok_s_user": 338.900955,
-    "tok_s_system": 43379.322216,
-    "step_ms": 16.524002,
-    "usd_per_mtok": 0.243332,
-    "usd_per_mtok_owned": 0.035543,
-    "tok_per_joule": 12.910513,
-    "hbm_busy": 0.711612
+    "tok_s_user": 301.470951,
+    "tok_s_system": 38588.281683,
+    "step_ms": 18.575587,
+    "usd_per_mtok_owned": 0.039956,
+    "tok_per_joule": 11.484608,
+    "hbm_busy": 0.758463
    },
    {
     "batch": 256,
-    "tok_s_user": 283.328591,
-    "tok_s_system": 72532.119251,
-    "step_ms": 19.765037,
-    "usd_per_mtok": 0.145529,
-    "usd_per_mtok_owned": 0.021257,
-    "tok_per_joule": 21.58694,
-    "hbm_busy": 0.629308
+    "tok_s_user": 255.95397,
+    "tok_s_system": 65524.21629,
+    "step_ms": 21.878934,
+    "usd_per_mtok_owned": 0.02353,
+    "tok_per_joule": 19.501255,
+    "hbm_busy": 0.679574
    }
   ],
-  "gpu_ideal_tp4": [
+  "gpu_df_tp4": [
    {
     "batch": 1,
-    "tok_s_user": 3151.48193,
-    "tok_s_system": 3151.48193,
-    "step_ms": 1.776942,
-    "usd_per_mtok": 3.349394,
-    "usd_per_mtok_owned": 0.489235,
-    "tok_per_joule": 0.937941,
-    "hbm_busy": 0.782098
+    "tok_s_user": 3485.76588,
+    "tok_s_system": 3485.76588,
+    "step_ms": 1.606534,
+    "usd_per_mtok_owned": 0.442318,
+    "tok_per_joule": 1.03743,
+    "hbm_busy": 0.969548
    },
    {
     "batch": 2,
-    "tok_s_user": 1898.366126,
-    "tok_s_system": 3796.732253,
-    "step_ms": 2.949905,
-    "usd_per_mtok": 2.780169,
-    "usd_per_mtok_owned": 0.40609,
-    "tok_per_joule": 1.12998,
-    "hbm_busy": 0.770928
+    "tok_s_user": 2062.172729,
+    "tok_s_system": 4124.345458,
+    "step_ms": 2.715582,
+    "usd_per_mtok_owned": 0.373833,
+    "tok_per_joule": 1.227484,
+    "hbm_busy": 0.938626
    },
    {
     "batch": 4,
-    "tok_s_user": 1239.424371,
-    "tok_s_system": 4957.697482,
-    "step_ms": 4.518226,
-    "usd_per_mtok": 2.129125,
-    "usd_per_mtok_owned": 0.310995,
-    "tok_per_joule": 1.475505,
-    "hbm_busy": 0.843429
+    "tok_s_user": 1258.185447,
+    "tok_s_system": 5032.741789,
+    "step_ms": 4.450854,
+    "usd_per_mtok_owned": 0.306357,
+    "tok_per_joule": 1.49784,
+    "hbm_busy": 0.959656
    },
    {
     "batch": 8,
-    "tok_s_user": 810.976335,
-    "tok_s_system": 6487.810679,
-    "step_ms": 6.905257,
-    "usd_per_mtok": 1.626983,
-    "usd_per_mtok_owned": 0.237648,
-    "tok_per_joule": 1.930896,
-    "hbm_busy": 0.888682
+    "tok_s_user": 787.3079,
+    "tok_s_system": 6298.463199,
+    "step_ms": 7.112846,
+    "usd_per_mtok_owned": 0.244793,
+    "tok_per_joule": 1.874543,
+    "hbm_busy": 0.967028
    },
    {
     "batch": 16,
-    "tok_s_user": 575.3552,
-    "tok_s_system": 9205.683192,
-    "step_ms": 9.733118,
-    "usd_per_mtok": 1.146635,
-    "usd_per_mtok_owned": 0.167485,
-    "tok_per_joule": 2.739787,
-    "hbm_busy": 0.90737
+    "tok_s_user": 544.831913,
+    "tok_s_system": 8717.310603,
+    "step_ms": 10.278399,
+    "usd_per_mtok_owned": 0.176868,
+    "tok_per_joule": 2.594438,
+    "hbm_busy": 0.963152
    },
    {
     "batch": 32,
-    "tok_s_user": 470.998729,
-    "tok_s_system": 15071.959332,
-    "step_ms": 11.889629,
-    "usd_per_mtok": 0.700344,
-    "usd_per_mtok_owned": 0.102297,
-    "tok_per_joule": 4.485702,
-    "hbm_busy": 0.903097
+    "tok_s_user": 443.074931,
+    "tok_s_system": 14178.397802,
+    "step_ms": 12.638946,
+    "usd_per_mtok_owned": 0.108744,
+    "tok_per_joule": 4.219761,
+    "hbm_busy": 0.952442
    },
    {
     "batch": 64,
-    "tok_s_user": 428.364015,
-    "tok_s_system": 27415.296987,
-    "step_ms": 13.072994,
-    "usd_per_mtok": 0.385024,
-    "usd_per_mtok_owned": 0.056239,
-    "tok_per_joule": 8.159315,
-    "hbm_busy": 0.871587
+    "tok_s_user": 403.301441,
+    "tok_s_system": 25811.292223,
+    "step_ms": 13.885395,
+    "usd_per_mtok_owned": 0.059734,
+    "tok_per_joule": 7.681932,
+    "hbm_busy": 0.920272
    },
    {
     "batch": 128,
-    "tok_s_user": 380.998356,
-    "tok_s_system": 48767.789582,
-    "step_ms": 14.698226,
-    "usd_per_mtok": 0.216445,
-    "usd_per_mtok_owned": 0.031615,
-    "tok_per_joule": 14.514223,
-    "hbm_busy": 0.800007
+    "tok_s_user": 360.328116,
+    "tok_s_system": 46121.998894,
+    "step_ms": 15.541391,
+    "usd_per_mtok_owned": 0.033429,
+    "tok_per_joule": 13.726785,
+    "hbm_busy": 0.849066
    },
    {
     "batch": 256,
-    "tok_s_user": 315.533548,
-    "tok_s_system": 80776.588181,
-    "step_ms": 17.747717,
-    "usd_per_mtok": 0.130676,
-    "usd_per_mtok_owned": 0.019087,
-    "tok_per_joule": 24.040651,
-    "hbm_busy": 0.700839
+    "tok_s_user": 300.252824,
+    "tok_s_system": 76864.722887,
+    "step_ms": 18.650949,
+    "usd_per_mtok_owned": 0.020059,
+    "tok_per_joule": 22.876406,
+    "hbm_busy": 0.749297
    }
   ],
   "asic": [
    {
     "batch": 1,
-    "tok_s_user": 4039.530656,
-    "tok_s_system": 4039.530656,
-    "step_ms": 1.3863,
-    "usd_per_mtok": 0.240315,
-    "usd_per_mtok_owned": 0.240315,
-    "tok_per_joule": 2.453225,
-    "hbm_busy": 0.966375
+    "tok_s_user": 3482.105775,
+    "tok_s_system": 3482.105775,
+    "step_ms": 1.608222,
+    "usd_per_mtok_owned": 0.281046,
+    "tok_per_joule": 1.91703,
+    "hbm_busy": 0.968528
    },
    {
     "batch": 2,
-    "tok_s_user": 2400.679825,
-    "tok_s_system": 4801.359651,
-    "step_ms": 2.332673,
-    "usd_per_mtok": 0.202047,
-    "usd_per_mtok_owned": 0.202047,
-    "tok_per_joule": 2.95015,
-    "hbm_busy": 0.939803
+    "tok_s_user": 2115.814068,
+    "tok_s_system": 4231.628135,
+    "step_ms": 2.646735,
+    "usd_per_mtok_owned": 0.231293,
+    "tok_per_joule": 2.325461,
+    "hbm_busy": 0.963039
    },
    {
     "batch": 4,
-    "tok_s_user": 1466.831791,
-    "tok_s_system": 5867.327166,
-    "step_ms": 3.817752,
-    "usd_per_mtok": 0.165546,
-    "usd_per_mtok_owned": 0.165546,
-    "tok_per_joule": 3.529143,
-    "hbm_busy": 0.962225
+    "tok_s_user": 1281.720425,
+    "tok_s_system": 5126.881699,
+    "step_ms": 4.369128,
+    "usd_per_mtok_owned": 0.191091,
+    "tok_per_joule": 2.775181,
+    "hbm_busy": 0.977604
    },
    {
     "batch": 8,
-    "tok_s_user": 899.22655,
-    "tok_s_system": 7193.812397,
-    "step_ms": 6.227574,
-    "usd_per_mtok": 0.135029,
-    "usd_per_mtok_owned": 0.135029,
-    "tok_per_joule": 4.322103,
-    "hbm_busy": 0.949895
+    "tok_s_user": 786.67542,
+    "tok_s_system": 6293.403357,
+    "step_ms": 7.118565,
+    "usd_per_mtok_owned": 0.155682,
+    "tok_per_joule": 3.403028,
+    "hbm_busy": 0.966248
    },
    {
     "batch": 16,
-    "tok_s_user": 619.854522,
-    "tok_s_system": 9917.672348,
-    "step_ms": 9.034378,
-    "usd_per_mtok": 0.098021,
-    "usd_per_mtok_owned": 0.098021,
-    "tok_per_joule": 5.87987,
-    "hbm_busy": 0.942335
+    "tok_s_user": 541.711839,
+    "tok_s_system": 8667.389431,
+    "step_ms": 10.337599,
+    "usd_per_mtok_owned": 0.113121,
+    "tok_per_joule": 4.635858,
+    "hbm_busy": 0.957631
    },
    {
     "batch": 32,
-    "tok_s_user": 488.697043,
-    "tok_s_system": 15638.305365,
-    "step_ms": 11.459042,
-    "usd_per_mtok": 0.062214,
-    "usd_per_mtok_owned": 0.062214,
-    "tok_per_joule": 9.147899,
-    "hbm_busy": 0.903275
+    "tok_s_user": 429.441388,
+    "tok_s_system": 13742.124408,
+    "step_ms": 13.040196,
+    "usd_per_mtok_owned": 0.071411,
+    "tok_per_joule": 7.252179,
+    "hbm_busy": 0.923127
    },
    {
     "batch": 64,
-    "tok_s_user": 419.379301,
-    "tok_s_system": 26840.275276,
-    "step_ms": 13.353067,
-    "usd_per_mtok": 0.036301,
-    "usd_per_mtok_owned": 0.036301,
-    "tok_per_joule": 15.339757,
-    "hbm_busy": 0.822559
+    "tok_s_user": 373.048043,
+    "tok_s_system": 23875.074741,
+    "step_ms": 15.011471,
+    "usd_per_mtok_owned": 0.041171,
+    "tok_per_joule": 12.294457,
+    "hbm_busy": 0.851225
    },
    {
     "batch": 128,
-    "tok_s_user": 344.295216,
-    "tok_s_system": 44069.787703,
-    "step_ms": 16.265111,
-    "usd_per_mtok": 0.022156,
-    "usd_per_mtok_owned": 0.022156,
-    "tok_per_joule": 24.347983,
-    "hbm_busy": 0.69688
+    "tok_s_user": 312.346877,
+    "tok_s_system": 39980.400306,
+    "step_ms": 17.928785,
+    "usd_per_mtok_owned": 0.02465,
+    "tok_per_joule": 19.835238,
+    "hbm_busy": 0.735982
    },
    {
     "batch": 256,
-    "tok_s_user": 254.647803,
-    "tok_s_system": 65189.837546,
-    "step_ms": 21.991158,
-    "usd_per_mtok": 0.015018,
-    "usd_per_mtok_owned": 0.015018,
-    "tok_per_joule": 34.55864,
-    "hbm_busy": 0.545202
+    "tok_s_user": 236.648857,
+    "tok_s_system": 60582.107307,
+    "step_ms": 23.663753,
+    "usd_per_mtok_owned": 0.016322,
+    "tok_per_joule": 28.683301,
+    "hbm_busy": 0.590537
    }
   ]
  },
@@ -993,149 +1073,149 @@
   "gpu_tp4_b1": [
    {
     "context": 4096,
-    "step_ms": 3.300037,
-    "tok_s_user": 1696.950842,
-    "tok_s_system": 1696.950842,
-    "hbm_gb_per_chip": 9.645923
+    "step_ms": 3.300117,
+    "tok_s_user": 1696.909717,
+    "tok_s_system": 1696.909717,
+    "hbm_gb_per_chip": 10.170644
    },
    {
     "context": 16384,
-    "step_ms": 3.300337,
-    "tok_s_user": 1696.79629,
-    "tok_s_system": 1696.79629,
-    "hbm_gb_per_chip": 9.647281
+    "step_ms": 3.301075,
+    "tok_s_user": 1696.417208,
+    "tok_s_system": 1696.417208,
+    "hbm_gb_per_chip": 10.176075
    },
    {
     "context": 65536,
-    "step_ms": 3.300803,
-    "tok_s_user": 1696.557117,
-    "tok_s_system": 1696.557117,
-    "hbm_gb_per_chip": 9.64937
+    "step_ms": 3.302549,
+    "tok_s_user": 1695.660061,
+    "tok_s_system": 1695.660061,
+    "hbm_gb_per_chip": 10.184431
    },
    {
     "context": 262144,
-    "step_ms": 3.302664,
-    "tok_s_user": 1695.601097,
-    "tok_s_system": 1695.601097,
-    "hbm_gb_per_chip": 9.657726
+    "step_ms": 3.308445,
+    "tok_s_user": 1692.638218,
+    "tok_s_system": 1692.638218,
+    "hbm_gb_per_chip": 10.217855
    },
    {
     "context": 1048576,
-    "step_ms": 3.310108,
-    "tok_s_user": 1691.787768,
-    "tok_s_system": 1691.787768,
-    "hbm_gb_per_chip": 9.691149
+    "step_ms": 3.332029,
+    "tok_s_user": 1680.657789,
+    "tok_s_system": 1680.657789,
+    "hbm_gb_per_chip": 10.351548
    }
   ],
   "gpu_tp4_b16": [
    {
     "context": 4096,
-    "step_ms": 11.505393,
-    "tok_s_user": 486.728272,
-    "tok_s_system": 7787.65235,
-    "hbm_gb_per_chip": 61.299529
+    "step_ms": 13.207021,
+    "tok_s_user": 424.016893,
+    "tok_s_system": 6784.270282,
+    "hbm_gb_per_chip": 65.639414
    },
    {
     "context": 16384,
-    "step_ms": 11.510202,
-    "tok_s_user": 486.524903,
-    "tok_s_system": 7784.398446,
-    "hbm_gb_per_chip": 61.321254
+    "step_ms": 13.222351,
+    "tok_s_user": 423.525301,
+    "tok_s_system": 6776.40481,
+    "hbm_gb_per_chip": 65.726315
    },
    {
     "context": 65536,
-    "step_ms": 11.517646,
-    "tok_s_user": 486.210444,
-    "tok_s_system": 7779.367101,
-    "hbm_gb_per_chip": 61.354678
+    "step_ms": 13.245935,
+    "tok_s_user": 422.771227,
+    "tok_s_system": 6764.339633,
+    "hbm_gb_per_chip": 65.860008
    },
    {
     "context": 262144,
-    "step_ms": 11.547424,
-    "tok_s_user": 484.956662,
-    "tok_s_system": 7759.306593,
-    "hbm_gb_per_chip": 61.488371
+    "step_ms": 13.34027,
+    "tok_s_user": 419.781595,
+    "tok_s_system": 6716.505521,
+    "hbm_gb_per_chip": 66.394782
    },
    {
     "context": 1048576,
-    "step_ms": 11.666532,
-    "tok_s_user": 480.005537,
-    "tok_s_system": 7680.088593,
-    "hbm_gb_per_chip": 62.023145
+    "step_ms": 13.717614,
+    "tok_s_user": 408.23426,
+    "tok_s_system": 6531.748166,
+    "hbm_gb_per_chip": 68.533877
    }
   ],
   "asic_b1": [
    {
     "context": 4096,
-    "step_ms": 1.386323,
-    "tok_s_user": 4039.463756,
-    "tok_s_system": 4039.463756,
-    "hbm_gb_per_chip": 9.645904
-   },
-   {
-    "context": 16384,
-    "step_ms": 1.386511,
-    "tok_s_user": 4038.914327,
-    "tok_s_system": 4038.914327,
+    "step_ms": 1.608329,
+    "tok_s_user": 3481.874619,
+    "tok_s_system": 3481.874619,
     "hbm_gb_per_chip": 9.647262
    },
    {
+    "context": 16384,
+    "step_ms": 1.609206,
+    "tok_s_user": 3479.977088,
+    "tok_s_system": 3479.977088,
+    "hbm_gb_per_chip": 9.652693
+   },
+   {
     "context": 65536,
-    "step_ms": 1.386801,
-    "tok_s_user": 4038.069344,
-    "tok_s_system": 4038.069344,
-    "hbm_gb_per_chip": 9.649351
+    "step_ms": 1.610555,
+    "tok_s_user": 3477.061844,
+    "tok_s_system": 3477.061844,
+    "hbm_gb_per_chip": 9.661049
    },
    {
     "context": 262144,
-    "step_ms": 1.387962,
-    "tok_s_user": 4034.692944,
-    "tok_s_system": 4034.692944,
-    "hbm_gb_per_chip": 9.657707
+    "step_ms": 1.615952,
+    "tok_s_user": 3465.449548,
+    "tok_s_system": 3465.449548,
+    "hbm_gb_per_chip": 9.694473
    },
    {
     "context": 1048576,
-    "step_ms": 1.410071,
-    "tok_s_user": 3971.430798,
-    "tok_s_system": 3971.430798,
-    "hbm_gb_per_chip": 9.69113
+    "step_ms": 1.75107,
+    "tok_s_user": 3198.044445,
+    "tok_s_system": 3198.044445,
+    "hbm_gb_per_chip": 9.828166
    }
   ],
   "asic_b16": [
    {
     "context": 4096,
-    "step_ms": 9.035731,
-    "tok_s_user": 619.761674,
-    "tok_s_system": 9916.186781,
-    "hbm_gb_per_chip": 61.299225
-   },
-   {
-    "context": 16384,
-    "step_ms": 9.046849,
-    "tok_s_user": 619.000081,
-    "tok_s_system": 9904.001297,
+    "step_ms": 10.339827,
+    "tok_s_user": 541.595132,
+    "tok_s_system": 8665.522117,
     "hbm_gb_per_chip": 61.32095
    },
    {
+    "context": 16384,
+    "step_ms": 10.378984,
+    "tok_s_user": 539.551839,
+    "tok_s_system": 8632.829431,
+    "hbm_gb_per_chip": 61.407851
+   },
+   {
     "context": 65536,
-    "step_ms": 9.064012,
-    "tok_s_user": 617.827924,
-    "tok_s_system": 9885.246791,
-    "hbm_gb_per_chip": 61.354374
+    "step_ms": 10.439382,
+    "tok_s_user": 536.430214,
+    "tok_s_system": 8582.883425,
+    "hbm_gb_per_chip": 61.541545
    },
    {
     "context": 262144,
-    "step_ms": 9.136257,
-    "tok_s_user": 612.942506,
-    "tok_s_system": 9807.080097,
-    "hbm_gb_per_chip": 61.488067
+    "step_ms": 10.680974,
+    "tok_s_user": 524.296751,
+    "tok_s_system": 8388.748022,
+    "hbm_gb_per_chip": 62.076318
    },
    {
     "context": 1048576,
-    "step_ms": 9.443909,
-    "tok_s_user": 592.974809,
-    "tok_s_system": 9487.596944,
-    "hbm_gb_per_chip": 62.022841
+    "step_ms": 11.647342,
+    "tok_s_user": 480.796404,
+    "tok_s_system": 7692.742457,
+    "hbm_gb_per_chip": 64.215413
    }
   ]
  },
@@ -1143,79 +1223,79 @@
   "gpu_tp4": [
    {
     "hbm_tb_s": 4.0,
-    "tok_s_user": 1194.102066
+    "tok_s_user": 1133.124117
    },
    {
     "hbm_tb_s": 6.0,
-    "tok_s_user": 1488.085819
+    "tok_s_user": 1455.549676
    },
    {
     "hbm_tb_s": 8.0,
-    "tok_s_user": 1696.969659
+    "tok_s_user": 1696.969697
    },
    {
     "hbm_tb_s": 12.0,
-    "tok_s_user": 1974.067499
+    "tok_s_user": 2034.360689
    },
    {
     "hbm_tb_s": 16.0,
-    "tok_s_user": 2149.465429
+    "tok_s_user": 2258.919531
    },
    {
-    "hbm_tb_s": 22.0,
-    "tok_s_user": 2317.389883
+    "hbm_tb_s": 19.2,
+    "tok_s_user": 2390.571776
    }
   ],
-  "gpu_ideal_tp4": [
+  "gpu_df_tp4": [
    {
     "hbm_tb_s": 4.0,
-    "tok_s_user": 1951.982637
+    "tok_s_user": 1769.830268
    },
    {
     "hbm_tb_s": 6.0,
-    "tok_s_user": 2647.596082
+    "tok_s_user": 2634.379864
    },
    {
     "hbm_tb_s": 8.0,
-    "tok_s_user": 3151.48193
+    "tok_s_user": 3485.76588
    },
    {
     "hbm_tb_s": 12.0,
-    "tok_s_user": 3919.642784
+    "tok_s_user": 4777.657819
    },
    {
     "hbm_tb_s": 16.0,
-    "tok_s_user": 4445.083028
+    "tok_s_user": 5706.780238
    },
    {
-    "hbm_tb_s": 22.0,
-    "tok_s_user": 4989.934747
+    "hbm_tb_s": 19.2,
+    "tok_s_user": 6373.426162
    }
   ],
   "asic": [
    {
     "hbm_tb_s": 4.0,
-    "tok_s_user": 2054.302824
+    "tok_s_user": 1768.887954
    },
    {
     "hbm_tb_s": 6.0,
-    "tok_s_user": 3055.331523
+    "tok_s_user": 2632.290075
    },
    {
     "hbm_tb_s": 8.0,
-    "tok_s_user": 4039.530656
+    "tok_s_user": 3482.105775
    },
    {
     "hbm_tb_s": 12.0,
-    "tok_s_user": 5655.956475
+    "tok_s_user": 5112.635349
    },
    {
     "hbm_tb_s": 16.0,
-    "tok_s_user": 6757.177485
+    "tok_s_user": 6179.686432
    },
    {
-    "hbm_tb_s": 22.0,
-    "tok_s_user": 8036.17874
+    "hbm_tb_s": 19.2,
+    "tok_s_user": 6952.536027
    }
   ]
  },
@@ -1223,59 +1303,43 @@
   "points": [
    {
     "stage_mb": 0,
-    "tok_s_user": 3475.833694,
-    "hbm_busy": 0.831522,
-    "die_mm2": 448.0,
-    "usd_per_mtok": 0.27784
+    "tok_s_user": 3077.456684,
+    "hbm_busy": 0.855977
    },
    {
     "stage_mb": 4,
-    "tok_s_user": 3989.815632,
-    "hbm_busy": 0.954482,
-    "die_mm2": 448.0,
-    "usd_per_mtok": 0.243198
+    "tok_s_user": 3478.332546,
+    "hbm_busy": 0.967479
    },
    {
     "stage_mb": 8,
-    "tok_s_user": 4003.107298,
-    "hbm_busy": 0.957662,
-    "die_mm2": 448.0,
-    "usd_per_mtok": 0.242421
+    "tok_s_user": 3481.636515,
+    "hbm_busy": 0.968398
    },
    {
     "stage_mb": 16,
-    "tok_s_user": 4029.931645,
-    "hbm_busy": 0.964079,
-    "die_mm2": 448.0,
-    "usd_per_mtok": 0.240866
+    "tok_s_user": 3482.105775,
+    "hbm_busy": 0.968528
    },
    {
     "stage_mb": 32,
-    "tok_s_user": 4039.530656,
-    "hbm_busy": 0.966375,
-    "die_mm2": 448.0,
-    "usd_per_mtok": 0.240315
+    "tok_s_user": 3482.105775,
+    "hbm_busy": 0.968528
    },
    {
     "stage_mb": 64,
-    "tok_s_user": 4039.530656,
-    "hbm_busy": 0.966375,
-    "die_mm2": 448.0,
-    "usd_per_mtok": 0.240315
+    "tok_s_user": 3482.105775,
+    "hbm_busy": 0.968528
    },
    {
     "stage_mb": 128,
-    "tok_s_user": 4039.530656,
-    "hbm_busy": 0.966375,
-    "die_mm2": 448.0,
-    "usd_per_mtok": 0.240315
+    "tok_s_user": 3482.105775,
+    "hbm_busy": 0.968528
    },
    {
     "stage_mb": 256,
-    "tok_s_user": 4039.530656,
-    "hbm_busy": 0.966375,
-    "die_mm2": 483.666667,
-    "usd_per_mtok": 0.240521
+    "tok_s_user": 3482.105775,
+    "hbm_busy": 0.968528
    }
   ]
  },
@@ -1413,27 +1477,27 @@
   "gains": [
    {
     "hit": 0.0,
-    "tok_s_user": 4039.530656
+    "tok_s_user": 3482.105775
    },
    {
     "hit": 0.1,
-    "tok_s_user": 4330.712485
+    "tok_s_user": 3733.68213
    },
    {
     "hit": 0.2,
-    "tok_s_user": 4667.133891
+    "tok_s_user": 4024.441327
    },
    {
     "hit": 0.4,
-    "tok_s_user": 5440.054991
+    "tok_s_user": 4766.879493
    },
    {
     "hit": 0.6,
-    "tok_s_user": 6421.316104
+    "tok_s_user": 5845.218876
    },
    {
     "hit": 0.8,
-    "tok_s_user": 7702.144269
+    "tok_s_user": 7401.489603
    }
   ],
   "slots_per_layer_in_half_sram": 0.7139,
@@ -1441,410 +1505,448 @@
  },
  "tornado": {
   "base": {
-   "tok_s_user": 4039.530656,
-   "speedup": 2.380438,
-   "usd_per_mtok": 0.240315,
-   "tok_per_joule": 2.453225
+   "tok_s_user": 3482.105775,
+   "speedup": 2.051955,
+   "usd_per_mtok": 0.281046,
+   "tok_per_joule": 1.91703
   },
   "rows": [
    {
-    "param": "ASIC HBM efficiency (0.80-0.95)",
+    "param": "ASIC HBM efficiency (0.65-0.935)",
     "low": {
-     "value": 0.8,
-     "tok_s_user": 3604.159273,
-     "speedup": 2.12388,
-     "usd_per_mtok": 0.268266,
-     "tok_per_joule": 2.349795
+     "value": 0.65,
+     "tok_s_user": 2938.507656,
+     "speedup": 1.731621,
+     "usd_per_mtok": 0.330959,
+     "tok_per_joule": 1.792555
     },
     "high": {
-     "value": 0.95,
-     "tok_s_user": 4255.998692,
-     "speedup": 2.507999,
-     "usd_per_mtok": 0.228547,
-     "tok_per_joule": 2.499549
+     "value": 0.935,
+     "tok_s_user": 4178.274371,
+     "speedup": 2.462197,
+     "usd_per_mtok": 0.236091,
+     "tok_per_joule": 2.044924
     }
    },
    {
     "param": "ASIC collective latency (0.7-3 us)",
     "low": {
      "value": 3e-06,
-     "tok_s_user": 3786.62222,
-     "speedup": 2.231402,
-     "usd_per_mtok": 0.255769,
-     "tok_per_joule": 2.394939
+     "tok_s_user": 3453.409875,
+     "speedup": 2.035045,
+     "usd_per_mtok": 0.283288,
+     "tok_per_joule": 1.911069
     },
     "high": {
      "value": 1e-06,
-     "tok_s_user": 4041.571413,
-     "speedup": 2.38164,
-     "usd_per_mtok": 0.240198,
-     "tok_per_joule": 2.453676
+     "tok_s_user": 3483.622068,
+     "speedup": 2.052849,
+     "usd_per_mtok": 0.280929,
+     "tok_per_joule": 1.917343
     }
    },
    {
     "param": "ASIC per-op pipeline overhead (0.05-0.6 us)",
     "low": {
      "value": 1e-06,
-     "tok_s_user": 3802.380167,
-     "speedup": 2.240688,
-     "usd_per_mtok": 0.254746,
-     "tok_per_joule": 2.398711
+     "tok_s_user": 3421.987346,
+     "speedup": 2.016528,
+     "usd_per_mtok": 0.285786,
+     "tok_per_joule": 1.90447
     },
     "high": {
      "value": 0.0,
-     "tok_s_user": 4039.967788,
-     "speedup": 2.380695,
-     "usd_per_mtok": 0.24029,
-     "tok_per_joule": 2.453321
+     "tok_s_user": 3482.430584,
+     "speedup": 2.052147,
+     "usd_per_mtok": 0.281021,
+     "tok_per_joule": 1.917097
     }
    },
    {
     "param": "ASIC dependent-fetch latency (0.2-2 us)",
     "low": {
      "value": 2e-06,
-     "tok_s_user": 3695.638642,
-     "speedup": 2.177787,
-     "usd_per_mtok": 0.261846,
-     "tok_per_joule": 2.372771
+     "tok_s_user": 3201.422796,
+     "speedup": 1.886553,
+     "usd_per_mtok": 0.304702,
+     "tok_per_joule": 1.85595
     },
     "high": {
      "value": 0.0,
-     "tok_s_user": 4116.134784,
-     "speedup": 2.425579,
-     "usd_per_mtok": 0.236009,
-     "tok_per_joule": 2.469974
+     "tok_s_user": 3544.253876,
+     "speedup": 2.088578,
+     "usd_per_mtok": 0.276315,
+     "tok_per_joule": 1.929731
     }
    },
    {
     "param": "ASIC router latency (0.05-2 us)",
     "low": {
      "value": 2e-06,
-     "tok_s_user": 3973.25718,
-     "speedup": 2.341384,
-     "usd_per_mtok": 0.244175,
-     "tok_per_joule": 2.438404
+     "tok_s_user": 3482.105775,
+     "speedup": 2.051955,
+     "usd_per_mtok": 0.281046,
+     "tok_per_joule": 1.91703
     },
     "high": {
      "value": 0.0,
-     "tok_s_user": 4039.530656,
-     "speedup": 2.380438,
-     "usd_per_mtok": 0.240315,
-     "tok_per_joule": 2.453225
+     "tok_s_user": 3482.105775,
+     "speedup": 2.051955,
+     "usd_per_mtok": 0.281046,
+     "tok_per_joule": 1.91703
     }
    },
    {
     "param": "ASIC staging buffer (16-256 MB)",
     "low": {
      "value": 16000000.0,
-     "tok_s_user": 4029.931645,
-     "speedup": 2.374781,
-     "usd_per_mtok": 0.240866,
-     "tok_per_joule": 2.451097
+     "tok_s_user": 3482.105775,
+     "speedup": 2.051955,
+     "usd_per_mtok": 0.281046,
+     "tok_per_joule": 1.91703
     },
     "high": {
      "value": 256000000.0,
-     "tok_s_user": 4039.530656,
-     "speedup": 2.380438,
-     "usd_per_mtok": 0.240315,
-     "tok_per_joule": 2.453225
+     "tok_s_user": 3482.105775,
+     "speedup": 2.051955,
+     "usd_per_mtok": 0.281046,
+     "tok_per_joule": 1.91703
     }
    },
    {
     "param": "routing locality (0-0.6)",
     "low": {
      "value": 0.0,
-     "tok_s_user": 4039.530656,
-     "speedup": 2.380438,
-     "usd_per_mtok": 0.240315,
-     "tok_per_joule": 2.453225
+     "tok_s_user": 3482.105775,
+     "speedup": 2.051955,
+     "usd_per_mtok": 0.281046,
+     "tok_per_joule": 1.91703
     },
     "high": {
      "value": 0.6,
-     "tok_s_user": 6009.219573,
-     "speedup": 3.035326,
-     "usd_per_mtok": 0.161573,
-     "tok_per_joule": 3.638843
+     "tok_s_user": 5185.398359,
+     "speedup": 2.530296,
+     "usd_per_mtok": 0.188756,
+     "tok_per_joule": 2.848198
     }
    },
    {
-    "param": "acceptance length (5.1-6.1)",
+    "param": "acceptance length (5.1-6.0)",
     "low": {
      "value": 5.1,
-     "tok_s_user": 3678.858276,
-     "speedup": 2.380438,
-     "usd_per_mtok": 0.263876,
-     "tok_per_joule": 2.234187
+     "tok_s_user": 3171.203474,
+     "speedup": 2.051955,
+     "usd_per_mtok": 0.3086,
+     "tok_per_joule": 1.745866
     },
     "high": {
-     "value": 6.1,
-     "tok_s_user": 4400.203036,
-     "speedup": 2.380438,
-     "usd_per_mtok": 0.220617,
-     "tok_per_joule": 2.672262
+     "value": 6.0,
+     "tok_s_user": 3730.827616,
+     "speedup": 2.051955,
+     "usd_per_mtok": 0.26231,
+     "tok_per_joule": 2.05396
     }
    },
    {
     "param": "context length (2.6K-128K)",
     "low": {
      "value": 131072,
-     "tok_s_user": 4036.94325,
-     "speedup": 2.379939,
-     "usd_per_mtok": 0.240488,
-     "tok_per_joule": 2.448441
+     "tok_s_user": 3473.182441,
+     "speedup": 2.049496,
+     "usd_per_mtok": 0.281852,
+     "tok_per_joule": 1.903262
     },
     "high": {
      "value": 2600,
-     "tok_s_user": 4039.530656,
-     "speedup": 2.380438,
-     "usd_per_mtok": 0.240315,
-     "tok_per_joule": 2.453225
+     "tok_s_user": 3482.105775,
+     "speedup": 2.051955,
+     "usd_per_mtok": 0.281046,
+     "tok_per_joule": 1.91703
     }
    },
    {
     "param": "NRE ($100M-$600M)",
     "low": {
      "value": 600000000.0,
-     "tok_s_user": 4039.530656,
-     "speedup": 2.380438,
-     "usd_per_mtok": 0.357983,
-     "tok_per_joule": 2.453225
+     "tok_s_user": 3482.105775,
+     "speedup": 2.051955,
+     "usd_per_mtok": 0.41755,
+     "tok_per_joule": 1.91703
     },
     "high": {
      "value": 100000000.0,
-     "tok_s_user": 4039.530656,
-     "speedup": 2.380438,
-     "usd_per_mtok": 0.16187,
-     "tok_per_joule": 2.453225
+     "tok_s_user": 3482.105775,
+     "speedup": 2.051955,
+     "usd_per_mtok": 0.190044,
+     "tok_per_joule": 1.91703
     }
    },
    {
     "param": "production volume (5K-100K chips)",
     "low": {
      "value": 5000,
-     "tok_s_user": 4039.530656,
-     "speedup": 2.380438,
-     "usd_per_mtok": 0.593318,
-     "tok_per_joule": 2.453225
+     "tok_s_user": 3482.105775,
+     "speedup": 2.051955,
+     "usd_per_mtok": 0.690558,
+     "tok_per_joule": 1.91703
     },
     "high": {
      "value": 100000,
-     "tok_s_user": 4039.530656,
-     "speedup": 2.380438,
-     "usd_per_mtok": 0.146181,
-     "tok_per_joule": 2.453225
+     "tok_s_user": 3482.105775,
+     "speedup": 2.051955,
+     "usd_per_mtok": 0.171843,
+     "tok_per_joule": 1.91703
     }
    },
    {
     "param": "HBM price ($10-20/GB)",
     "low": {
      "value": 20.0,
-     "tok_s_user": 4039.530656,
-     "speedup": 2.380438,
-     "usd_per_mtok": 0.247846,
-     "tok_per_joule": 2.453225
+     "tok_s_user": 3482.105775,
+     "speedup": 2.051955,
+     "usd_per_mtok": 0.289782,
+     "tok_per_joule": 1.91703
     },
     "high": {
      "value": 10.0,
-     "tok_s_user": 4039.530656,
-     "speedup": 2.380438,
-     "usd_per_mtok": 0.232785,
-     "tok_per_joule": 2.453225
+     "tok_s_user": 3482.105775,
+     "speedup": 2.051955,
+     "usd_per_mtok": 0.27231,
+     "tok_per_joule": 1.91703
     }
    },
    {
     "param": "system share per chip ($4K-16K)",
     "low": {
      "value": 16000,
-     "tok_s_user": 4039.530656,
-     "speedup": 2.380438,
-     "usd_per_mtok": 0.303071,
-     "tok_per_joule": 2.453225
+     "tok_s_user": 3482.105775,
+     "speedup": 2.051955,
+     "usd_per_mtok": 0.353848,
+     "tok_per_joule": 1.91703
     },
     "high": {
      "value": 4000,
-     "tok_s_user": 4039.530656,
-     "speedup": 2.380438,
-     "usd_per_mtok": 0.208937,
-     "tok_per_joule": 2.453225
+     "tok_s_user": 3482.105775,
+     "speedup": 2.051955,
+     "usd_per_mtok": 0.244645,
+     "tok_per_joule": 1.91703
     }
    },
    {
     "param": "SRAM density (0.3-0.8 mm2/MiB)",
     "low": {
      "value": 0.8,
-     "tok_s_user": 4039.530656,
-     "speedup": 2.380438,
-     "usd_per_mtok": 0.240618,
-     "tok_per_joule": 2.453225
+     "tok_s_user": 3482.105775,
+     "speedup": 2.051955,
+     "usd_per_mtok": 0.281046,
+     "tok_per_joule": 1.91703
     },
     "high": {
      "value": 0.3,
-     "tok_s_user": 4039.530656,
-     "speedup": 2.380438,
-     "usd_per_mtok": 0.240315,
-     "tok_per_joule": 2.453225
+     "tok_s_user": 3482.105775,
+     "speedup": 2.051955,
+     "usd_per_mtok": 0.281046,
+     "tok_per_joule": 1.91703
     }
    },
    {
-    "param": "FP8 MAC area (40-200 um2)",
+    "param": "HBM shoreline per stack (9-13 mm)",
     "low": {
-     "value": 200.0,
-     "tok_s_user": 4039.530656,
-     "speedup": 2.380438,
-     "usd_per_mtok": 0.240643,
-     "tok_per_joule": 2.453225
+     "value": 13.0,
+     "tok_s_user": 3482.105775,
+     "speedup": 2.051955,
+     "usd_per_mtok": 0.281664,
+     "tok_per_joule": 1.91703
     },
     "high": {
-     "value": 40.0,
-     "tok_s_user": 4039.530656,
-     "speedup": 2.380438,
-     "usd_per_mtok": 0.240315,
-     "tok_per_joule": 2.453225
+     "value": 9.0,
+     "tok_s_user": 3482.105775,
+     "speedup": 2.051955,
+     "usd_per_mtok": 0.280494,
+     "tok_per_joule": 1.91703
     }
    },
    {
     "param": "HBM pJ/bit (3-6)",
     "low": {
      "value": 6.0,
-     "tok_s_user": 4039.530656,
-     "speedup": 2.380438,
-     "usd_per_mtok": 0.244116,
-     "tok_per_joule": 1.93101
+     "tok_s_user": 3482.105775,
+     "speedup": 2.051955,
+     "usd_per_mtok": 0.285366,
+     "tok_per_joule": 1.545784
     },
     "high": {
      "value": 3.0,
-     "tok_s_user": 4039.530656,
-     "speedup": 2.380438,
-     "usd_per_mtok": 0.238415,
-     "tok_per_joule": 2.836813
+     "tok_s_user": 3482.105775,
+     "speedup": 2.051955,
+     "usd_per_mtok": 0.278886,
+     "tok_per_joule": 2.178649
+    }
+   },
+   {
+    "param": "on-die NoC pJ/bit (0.2-1.5)",
+    "low": {
+     "value": 1.5,
+     "tok_s_user": 3482.105775,
+     "speedup": 2.051955,
+     "usd_per_mtok": 0.283206,
+     "tok_per_joule": 1.711506
+    },
+    "high": {
+     "value": 0.2,
+     "tok_s_user": 3482.105775,
+     "speedup": 2.051955,
+     "usd_per_mtok": 0.280398,
+     "tok_per_joule": 1.988671
     }
    },
    {
     "param": "ASIC static power (75-300 W)",
     "low": {
      "value": 300.0,
-     "tok_s_user": 4039.530656,
-     "speedup": 2.380438,
-     "usd_per_mtok": 0.245437,
-     "tok_per_joule": 1.798047
+     "tok_s_user": 3482.105775,
+     "speedup": 2.051955,
+     "usd_per_mtok": 0.287798,
+     "tok_per_joule": 1.393832
     },
     "high": {
      "value": 75.0,
-     "tok_s_user": 4039.530656,
-     "speedup": 2.380438,
-     "usd_per_mtok": 0.237755,
-     "tok_per_joule": 2.999754
+     "tok_s_user": 3482.105775,
+     "speedup": 2.051955,
+     "usd_per_mtok": 0.27767,
+     "tok_per_joule": 2.359953
     }
    }
-  ],
-  "gpu_measured_tok_s": 1696.969697,
-  "gpu_owned_cost_sweep": [
-   {
-    "purchase_usd_per_gpu": 25000,
-    "usd_per_mtok_owned": 0.535104
-   },
-   {
-    "purchase_usd_per_gpu": 45000,
-    "usd_per_mtok_owned": 0.908571
-   },
-   {
-    "purchase_usd_per_gpu": 65000,
-    "usd_per_mtok_owned": 1.282037
-   }
   ]
+ },
+ "monte_carlo": {
+  "n": 300,
+  "vs_gpu": {
+   "p5": 1.723016,
+   "p50": 2.06045,
+   "p95": 2.400967,
+   "min": 1.622545,
+   "max": 2.494412
+  },
+  "vs_sw": {
+   "p5": 0.998631,
+   "p50": 1.035923,
+   "p95": 1.196236,
+   "min": 0.944127,
+   "max": 1.304876
+  },
+  "worst_corner_vs_gpu": 1.463732,
+  "vs_gpu_measured": {
+   "p5": 1.680406,
+   "p50": 2.009494,
+   "p95": 2.34159,
+   "min": 1.582419,
+   "max": 2.432725
+  }
  },
  "ablation": {
   "steps": [
    {
-    "step": "A0  4x GB300, deepseek-ultrafast (calibrated)",
-    "tok_s_user": 1696.969659,
+    "id": "A0",
+    "kind": "today",
+    "step": "4x GB300, deepseek-ultrafast (calibrated)",
+    "tok_s_user": 1696.969697,
     "step_ms": 3.3,
-    "hbm_busy": 0.421134,
+    "hbm_busy": 0.497611,
     "breakdown_ms": {
-     "overhead": 1.425836,
-     "collective": 0.484361,
-     "memory": 1.368776,
-     "compute": 0.021027
+     "overhead": 1.442938,
+     "collective": 0.214895,
+     "memory": 1.621001,
+     "compute": 0.021166
     }
    },
    {
-    "step": "A1  + one persistent program (no launches; barrier per stage)",
-    "tok_s_user": 2271.654168,
-    "step_ms": 2.465164,
-    "hbm_busy": 0.563753,
+    "id": "A1",
+    "kind": "software",
+    "step": "+ unpadded expert layout",
+    "tok_s_user": 1741.567482,
+    "step_ms": 3.215494,
+    "hbm_busy": 0.484408,
     "breakdown_ms": {
-     "overhead": 0.591,
-     "collective": 0.484361,
-     "memory": 1.368776,
-     "compute": 0.021027
+     "overhead": 1.442938,
+     "collective": 0.214895,
+     "memory": 1.536495,
+     "compute": 0.021166
     }
    },
    {
-    "step": "A2  + statically scheduled pipeline (no barriers)",
-    "tok_s_user": 2791.421213,
-    "step_ms": 2.006147,
-    "hbm_busy": 0.692743,
+    "id": "A2",
+    "kind": "software",
+    "step": "+ persistent kernel, barrier per stage (1 us)",
+    "tok_s_user": 2587.135275,
+    "step_ms": 2.164556,
+    "hbm_busy": 0.719599,
     "breakdown_ms": {
-     "overhead": 0.0976,
-     "collective": 0.484361,
-     "memory": 1.403159,
-     "compute": 0.021027
+     "overhead": 0.392,
+     "collective": 0.214895,
+     "memory": 1.536495,
+     "compute": 0.021166
     }
    },
    {
-    "step": "A3  + cross-layer weight prefetch (128 MB staging SRAM)",
-    "tok_s_user": 3344.571478,
-    "step_ms": 1.674355,
-    "hbm_busy": 0.830017,
+    "id": "A3",
+    "kind": "software",
+    "step": "+ flag hand-offs instead of barriers (0.5 us), no prefetch",
+    "tok_s_user": 2750.453877,
+    "step_ms": 2.036028,
+    "hbm_busy": 0.765025,
     "breakdown_ms": {
-     "overhead": 0.0976,
-     "collective": 0.484361,
-     "memory": 1.071367,
-     "compute": 0.021027
+     "overhead": 0.238,
+     "collective": 0.214895,
+     "memory": 1.561966,
+     "compute": 0.021166
     }
    },
    {
-    "step": "A4  + hardware MoE router (gate -> expert DMA in 0.1 us)",
-    "tok_s_user": 3416.970019,
-    "step_ms": 1.638879,
-    "hbm_busy": 0.847984,
+    "id": "A4",
+    "kind": "software",
+    "step": "+ cross-layer weight prefetch into L2 (64 MB)",
+    "tok_s_user": 3382.250594,
+    "step_ms": 1.655702,
+    "hbm_busy": 0.940756,
     "breakdown_ms": {
-     "overhead": 0.0976,
-     "collective": 0.484361,
-     "memory": 1.035891,
-     "compute": 0.021027
+     "overhead": 0.238,
+     "collective": 0.214895,
+     "memory": 1.181641,
+     "compute": 0.021166
     }
    },
    {
-    "step": "A5  + in-fabric all-reduce (5 -> 1.4 us)",
-    "tok_s_user": 3904.16673,
-    "step_ms": 1.434365,
-    "hbm_busy": 0.968891,
+    "id": "A5",
+    "kind": "software",
+    "step": "+ speed-of-light all-reduce (1.4 us) = dataflow-style GPU software",
+    "tok_s_user": 3485.76588,
+    "step_ms": 1.606534,
+    "hbm_busy": 0.969548,
     "breakdown_ms": {
-     "overhead": 0.0976,
-     "collective": 0.142361,
-     "memory": 1.173377,
-     "compute": 0.021027
+     "overhead": 0.238,
+     "collective": 0.130505,
+     "memory": 1.216862,
+     "compute": 0.021166
     }
    },
    {
-    "step": "A6  = MDA-1 (its HBM efficiency 0.90, compute, Engram in LPDDR)",
-    "tok_s_user": 4039.530656,
-    "step_ms": 1.3863,
-    "hbm_busy": 0.966375,
+    "id": "A6",
+    "kind": "silicon",
+    "step": "MDA-1: on-chip hand-off (0.2 us), HW router (0.1 us), Engram off-HBM",
+    "tok_s_user": 3482.105775,
+    "step_ms": 1.608222,
+    "hbm_busy": 0.968528,
     "breakdown_ms": {
      "overhead": 0.0968,
-     "collective": 0.142361,
-     "memory": 0.82925,
-     "compute": 0.317889
+     "collective": 0.130505,
+     "memory": 1.062024,
+     "compute": 0.318893
     }
    }
   ],
   "shard_replicated_on_mda1": {
-   "tok_s_user": 3576.104172
-  },
-  "calibration": {
-   "hbm_eff": 0.867585
+   "tok_s_user": 3247.4571
   }
  }
 }

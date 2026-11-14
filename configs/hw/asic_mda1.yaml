@@ -1,12 +1,13 @@
-# MDA-1: proposed MoE decode ASIC (one chip). Iso-HBM-bandwidth with B300 by construction
-# (8 HBM3E stacks, 8 TB/s) so that comparisons isolate architecture, not memory technology.
-# TSMC N4P-class. All values per chip. See docs/03_architecture.md.
+# MDA-1: proposed MoE decode ASIC. One "chip" = one package: 2 dies, each with 4 HBM3E stacks
+# (like B300's 2 dies + 8 stacks), joined by an advanced-package die-to-die link. Iso-HBM-
+# bandwidth with GB300 by construction (8 TB/s) so comparisons isolate architecture, not memory
+# technology. TSMC N4P-class. All values per package. See docs/03_architecture.md.
 name: MDA-1 (4 chips, proposed)
 kind: asic
 n_chips: 4
 hbm_bw: 8.0e12            # 8 stacks x 1.0 TB/s (HBM3E 8-Hi run at 8 Gb/s/pin, below its >9.2 rating); src: hbm3e
 hbm_cap: 192.0e9          # 8 x 24 GB 8-Hi stacks (src: hbm3e); weights need ~76 GB/chip at TP4
-hbm_eff: 0.90             # conservative: below both the GPU's calibrated 0.91 and STREAM's 0.935
+hbm_eff: 0.80             # placeholder; experiments use the GPU's calibrated value (same HBM, same physics)
 hbm_latency: 0.5e-6       # dependent (expert) fetch: controller queue + DRAM + NoC (assumption, swept)
 host_bw: 120.0e9          # LPDDR5X for Engram tables (assumption; Engram needs ~MB/s, see docs/01)
 host_latency: 1.0e-6
@@ -22,10 +23,10 @@ topk_rate: 0.75e12        # 16 streaming top-k lanes x 32 elem/clk x 1.5 GHz
 sram_bytes: 268435456     # 256 MiB
 sram_bw: 40.0e12
 stage_bytes: 128.0e6
-link_bw: 900.0e9          # per direction; 3 peers x 300 GB/s (full mesh on one board)
-coll_latency: 1.4e-6      # = measured NVLink AllReduce speed-of-light (no link-latency advantage assumed); src: ar-latency
+link_bw: 900.0e9          # per direction: 3 peers x 300 GB/s over 72 x 112G lanes (24 per peer)
+coll_latency: 1.4e-6      # = NVLink AllReduce speed-of-light computed for 2x GB200 (no link advantage assumed); src: ar-latency
 prefetch: true
-op_overhead: 0.2e-6       # 300 cycles @1.5 GHz pipeline fill/drain per op
+op_overhead: 0.2e-6       # mechanism: producer->consumer through on-chip buffers, no L2 round trip; ~300 cycles fill/drain at 1.5 GHz (assumption, swept)
 router_latency: 0.1e-6    # rtl/moe_topk_router.sv: 98 cycles (65 ns) + score epilogue
 serial_round_latency: 0.3e-6
 step_overhead: 2.0e-6     # step-boundary sync with host + sampler handoff
@@ -38,24 +39,30 @@ power:
   lpddr_pj_per_bit: 20.0  # LPDDR 640 pJ/32-bit word (conservative, older node); src: mac-energy
   pj_per_flop: {fp4: 0.15, fp8: 0.25, bf16: 0.5, fp32: 1.5}   # 7 nm op energies x~2 for operand delivery; src: mac-energy
   static_w: 150           # leakage + PHY idle + clocks (assumption, swept)
+  noc_pj_per_bit: 0.5     # moving every streamed byte across the die (low-swing 6.5-23 fJ/bit/mm at 16 nm x ~15 mm, x2; assumption)
+  d2d_pj_per_bit: 0.25    # UCIe advanced package; src: serdes-energy
+  vr_efficiency: 0.88     # board + package power delivery (assumption)
 area:
   clock_hz: 1.5e9
   hbm_stacks: 8
   mm2_per_hbm_phy: 12.0   # GUC: 11 mm2 HBM3E PHY (unverified) + controller; src: hbm-phy-area
   mm2_per_mib_sram: 0.5   # N5 HD ~32 Mib/mm2 = 0.25 mm2/MiB array, x2 for macro periphery/routing; src: sram-density
   um2_per_fp8_mac: 80.0   # assumption (swept 40-200); NOT FOUND in public sources
-  serdes_lanes: 48
+  serdes_lanes: 72          # 112G LR class (sourced energy); split across both dies
   mm2_per_serdes_lane: 0.7  # assumption (swept)
+  dies: 2
+  d2d_mm2_per_die: 10.0     # advanced-package die-to-die PHY (assumption)
   lpddr_channels: 4
   mm2_per_lpddr_channel: 3.0
   misc_fraction: 0.25
-  mm_shoreline_per_hbm: 7.0   # die-edge length per HBM PHY (assumption); 4 stacks per long side
-  min_short_side_mm: 16.0     # => die >= 28 x 16 mm = 448 mm2 regardless of logic area
+  mm_shoreline_per_hbm: 11.0  # HBM3E cube is ~11 mm wide (assumption); 2 stacks per long side per die
+  die_margin_mm: 2.0
+  min_short_side_mm: 14.0     # => each die >= (2 x 11 + 2) x 14 = 336 mm2 regardless of logic area
 cost:
   wafer_usd: 17000        # 4NP/N5 wafer; src: wafer-price
   d0_per_cm2: 0.10        # N5 D0 0.10-0.11 (2020); src: defect-density
   hbm_usd_per_gb: 15.0    # HBM3E $12-12.8/GB contract, Epoch $14-17; upper used; src: hbm-price
-  package_usd: 2500       # CoWoS-L $1.1K + yield loss $1.0K (Epoch B200) + test; src: cowos-cost
+  package_usd: 2500       # 2-die CoWoS-L like B200: $1.1K + $1.0K yield loss (Epoch) + test; src: cowos-cost
   lpddr_gb: 64
   lpddr_usd_per_gb: 4.0
   system_usd_per_chip: 8000   # board, power, host, NIC, chassis share (assumption, swept)

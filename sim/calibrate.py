@@ -45,20 +45,23 @@ class Calibration:
 
 
 def workload_for(cfg_name: str, rep: dict, **kw) -> DecodeWorkload:
+    """The as-built engine: its verify-head precision and its padded expert layout."""
     c = rep["configs"][cfg_name]
-    return DecodeWorkload(verify_head=c["verify_head"], accept_len=c["accept_len"], **kw)
+    tp = 4 if cfg_name == "gb300_tp4" else 8
+    return DecodeWorkload(verify_head=c["verify_head"], accept_len=c["accept_len"], layout_tp=tp, **kw)
 
 
 def step_ms(spec: ModelSpec, hw: Hardware, wl: DecodeWorkload) -> float:
     return simulate_step(decode_step(spec, wl), hw).step_time * 1e3
 
 
-def calibrate(spec: ModelSpec | None = None, context: int = 2600, locality: float = 0.0) -> Calibration:
+def calibrate(spec: ModelSpec | None = None, context: int = 2600, locality: float = 0.0,
+              measured: dict | None = None, hw_overrides: dict | None = None) -> Calibration:
     spec = spec or ModelSpec.load()
     rep = load_yaml(BASELINE)
-    hws = {k: load_hw(v) for k, v in CONFIGS.items()}
+    hws = {k: load_hw(v, **(hw_overrides or {})) for k, v in CONFIGS.items()}
     wls = {k: workload_for(k, rep, context=context, locality=locality) for k in CONFIGS}
-    meas = {k: rep["configs"][k]["step_ms"] for k in CONFIGS}
+    meas = measured or {k: rep["configs"][k]["step_ms"] for k in CONFIGS}
     ops = {k: decode_step(spec, wls[k]) for k in CONFIGS}
 
     def model(k, eff, ko):
@@ -67,7 +70,7 @@ def calibrate(spec: ModelSpec | None = None, context: int = 2600, locality: floa
     def resid(x):
         return [(model(k, x[0], x[1] * 1e-6) - meas[k]) / meas[k] for k in CONFIGS]
 
-    fit = least_squares(resid, x0=[0.85, 2.0], bounds=([0.3, 0.0], [1.0, 20.0]))
+    fit = least_squares(resid, x0=[0.85, 2.0], bounds=([0.3, 0.0], [1.0, 40.0]))
     eff, ko = fit.x[0], fit.x[1] * 1e-6
     pred = {k: model(k, eff, ko) for k in CONFIGS}
 
@@ -76,7 +79,7 @@ def calibrate(spec: ModelSpec | None = None, context: int = 2600, locality: floa
     loo = {}
     names = list(CONFIGS)
     for fit_on, held in ((names[0], names[1]), (names[1], names[0])):
-        ko1 = brentq(lambda x: model(fit_on, eff0, x * 1e-6) - meas[fit_on], 0.0, 50.0) * 1e-6
+        ko1 = brentq(lambda x: model(fit_on, eff0, x * 1e-6) - meas[fit_on], 0.0, 80.0) * 1e-6
         p = model(held, eff0, ko1)
         loo[held] = {"fit_on": fit_on, "kernel_overhead_us": ko1 * 1e6, "predicted_ms": p,
                      "measured_ms": meas[held], "error_pct": 100.0 * (p - meas[held]) / meas[held]}

@@ -47,7 +47,8 @@ def main() -> None:
     ap.add_argument("--config", choices=["gb300_tp4", "b300_tp8"], default="gb300_tp4")
     a = ap.parse_args()
     key = "gpu_tp4" if a.config == "gb300_tp4" else "gpu_tp8"
-    ops = decode_step(spec(), DecodeWorkload(verify_head="fp8" if key == "gpu_tp4" else "bf16"))
+    ops = decode_step(spec(), DecodeWorkload(verify_head="fp8" if key == "gpu_tp4" else "bf16",
+                                             layout_tp=4 if key == "gpu_tp4" else 8))
     r = simulate_step(ops, platform(key))
     acc = collections.defaultdict(float)
     for i, t in r.segments.items():
@@ -56,8 +57,10 @@ def main() -> None:
     print("| group | predicted us / step | share |\n|---|---:|---:|")
     for g, v in sorted(acc.items(), key=lambda kv: -kv[1]):
         print(f"| {g} | {v * 1e6:.0f} | {100 * v / r.step_time:.0f}% |")
-    print(f"\npredicted fixed (launch/barrier/collective) share: "
+    print(f"\npredicted fixed (dependent-stage + collective latency) share: "
           f"{100 * (r.breakdown['overhead'] + r.breakdown['collective']) / r.step_time:.0f}%")
+    print("note: the calibration pins the *sum* of fixed costs, not how they split between groups "
+          "(collective latencies of 2.37-10 us fit equally well). Compare totals first.")
 
 
 if __name__ == "__main__":

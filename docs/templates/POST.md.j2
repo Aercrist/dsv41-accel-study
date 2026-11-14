@@ -1,70 +1,71 @@
 # Draft posts
 
 Repo link placeholder: `https://github.com/benblaine/dsv41-accel-study` (update once published).
-Attach `results/fig_step_breakdown.png` to post 1 and `results/fig_strong_scaling.png` to post 4.
+Attach `results/fig_step_breakdown.png` to post 1 and `results/fig_ablation.png` to post 3.
 
 ## X thread
 
 **1/**
-Baseten's deepseek-ultrafast decodes DeepSeek-V4.1-Flash at {{ K.meas4.decode_tok_s|n }} tok/s on 4x GB300.
+Baseten's deepseek-ultrafast runs DeepSeek-V4.1-Flash at {{ K.meas4.decode_tok_s|n }} tok/s on 4x GB300. I modeled where the time goes.
 
-I modeled where the time goes. Only ~{{ (1 - K.fixed4_share)|pct }} of each 3.3 ms step moves weights. The other {{ K.fixed4_share|pct }} is fixed per-layer latency: kernel boundaries + all-reduces.
-
-The HBM sits idle most of the step. 🧵 [step breakdown]
+About half of each 3.3 ms decode step isn't moving weights. It's fixed per-stage latency: ~{{ (K.fixed4_ms*1000/43)|n(0) }} µs per transformer block, waiting on dependent kernels and all-reduces. 🧵 [step breakdown]
 
 **2/**
-That one fact explains their own numbers. 8x B300 is only {{ K.tp8_gain|pct }} faster per step than 4x GB300: more GPUs shrink the streaming part, not the {{ K.fixed4_ms|n(1) }} ms of latency.
+That's why 8 GPUs are only {{ K.tp8_gain|pct }} faster per step than 4. More GPUs shrink the streaming. The latency stays.
 
-Same reason Rubin's 2.75x bandwidth buys only ~{{ K.rubin_vs_gb300|pct }} with today's per-layer overheads (modeled).
+It's also why Rubin's {{ K.rubin_bw_ratio|n(1) }}x bandwidth buys only ~{{ (K.rubin_vs_gb300*100)|n(0) }}% with today's per-stage latency (modeled).
 
 **3/**
-How I know: an op-level simulator built from the engine's Rust/CUDA source and the checkpoint's safetensors headers. It reproduces DeepSeek's 552B / 16B-active / 890 B-per-token KV exactly.
+The fix is an execution model, not more silicon. One persistent program, flag hand-offs instead of barriers, and the next layers' weights streaming while this layer's experts load.
 
-Calibrated on TP4, it predicts the TP8 step time to within {{ cal.loo.b300_tp8.error_pct|abs|n(1) }}%.
+Same 4x GB300, modeled: {{ C.gpu_df_tp4.tok_s_user|n }} tok/s/user, {{ K.sw_vs_meas|x }}. [ablation]
 
 **4/**
-So I designed silicon around the bottleneck: MDA-1, a decode-only ASIC with *the same* 8 TB/s HBM as a B300, a static compiled schedule (no kernels), weight prefetch, a hardware MoE router and in-fabric all-reduce.
+Then I designed the silicon anyway. MDA-1: a decode ASIC with the same 8 TB/s HBM, 2 PF FP8, a hardware MoE router (RTL-verified) and in-fabric all-reduce.
 
-Simulated: {{ C.asic.tok_s_user|n }} tok/s/user on 4 chips ({{ K.asic_vs_meas|x }}), {{ K.asic8|n }} on 8 ({{ K.asic8_vs_meas8|x }} the measured 8x B300). [strong scaling]
+It hits the HBM roofline: {{ C.asic.tok_s_user|n }} tok/s/user. Same as good software on the same bandwidth. Silicon doesn't buy speed here.
 
 **5/**
-It's not about FLOPs. MDA-1 carries 40% of a B300's compute. The win is converting bandwidth into tokens: HBM {{ C.asic.hbm_busy|pct }} busy vs {{ C.gpu_tp4.hbm_busy|pct }}.
+What it buys is economics: ~{{ K.usd_vs_sw|x }} lower $/token and ~{{ K.tpj_vs_sw|x }} tokens/J vs GPUs running that same software. That's at $45K/GPU and 60% TDP; the range is in the repo.
 
-Modeled {{ K.tpj_ratio|x }} tokens/J and {{ K.usd_ratio_owned|x }} lower $/M tokens than the same GPUs owned.
+Break-even is ~{{ K.be_sw_300|n(-3) }} chips at $300M NRE. Hyperscaler math, not startup math.
 
 **6/**
 Things that surprised me:
-• A 128x128 systolic array runs decode GEMVs at 0.3-1.5% utilization (SCALE-Sim). The engine has to be 16 rows wide.
-• Caching experts in SRAM is a dead end. It needs GBs per chip.
-• Engram's 203 GB of tables need ~{{ (W.engram.lookup_bytes_per_step / (K.meas4.step_ms/1e3) / 1e6)|n(0) }} MB/s. Put them in LPDDR.
+• A 128x128 systolic array runs these decode GEMVs at 0.3-1.5% utilization (SCALE-Sim). The engine has to be 16 rows wide.
+• SRAM expert caches are a dead end. They need GBs per chip.
+• Engram's 203 GB of tables serve ~{{ (W.engram.lookup_bytes_per_step / (K.meas4.step_ms/1e3) / 1e6)|n(0) }} MB/s of lookups. Put them in LPDDR.
+• At TP8 the expert layout pads +{{ ((W.layout_factor.tp8-1)*100)|n(0) }}% bytes.
 
 **7/**
-Software headroom is real too: an ideal GPU stack bounds at {{ C.gpu_ideal_tp4.tok_s_user|n }} tok/s on the same 4 GPUs. Silicon pulls ahead as you scale out ({{ (K.asic8/K.ideal8)|x(2) }} at 8 chips) and on energy and cost.
+Everything is open and reproducible: simulator, calibration, joint Monte Carlo, ablation, router RTL, and the list of claims an adversarial review made me fix. `make reproduce`.
 
-Everything is open: simulator, calibration, tornado, ablation, RTL. `make reproduce`.
 → https://github.com/benblaine/dsv41-accel-study
 
 ## LinkedIn
 
-Baseten open-sourced deepseek-ultrafast, a hand-tuned engine that decodes DeepSeek-V4.1-Flash at {{ K.meas4.decode_tok_s|n }} tokens/s per user on 4x GB300. I used it as the reference workload for a hardware study.
+Baseten open-sourced deepseek-ultrafast, a hand-tuned engine that decodes DeepSeek-V4.1-Flash at {{ K.meas4.decode_tok_s|n }} tokens/s per user on 4x GB300. I used it as the reference workload for a hardware study, and the answer surprised me.
 
-The headline: about {{ K.fixed4_share|pct }} of every decode step is fixed per-layer latency, not memory bandwidth. It explains why 8 GPUs are only {{ K.tp8_gain|pct }} faster than 4.
+About half of every decode step is fixed per-stage latency, not memory bandwidth. A dataflow-style execution model removes most of it: on the same GPUs, the model projects {{ K.sw_vs_meas|x }} the speed. A custom decode ASIC built around that execution model reaches the same speed at the same memory bandwidth. Its advantage is cost and energy per token at volume, not raw speed.
 
-Designing around that, a decode-only ASIC with the same HBM bandwidth as a B300 projects {{ C.asic.tok_s_user|n }} tokens/s per user on 4 chips and {{ K.asic8|n }} on 8. That's {{ K.tpj_ratio|x }} the tokens per joule, from a statically scheduled pipeline, a hardware MoE router and in-fabric collectives.
-
-Simulator, calibration against Baseten's published numbers, sensitivity analysis and a verified RTL block are in the repo, reproducible with one command. All MDA-1 numbers are modeled projections.
+The simulator, calibration against Baseten's published numbers, the joint uncertainty analysis and a verified RTL block are all in the repo, reproducible with one command. All projections are modeled.
 
 ## Reply to the Baseten team
 
 Hi Baseten team, thanks for open-sourcing deepseek-ultrafast. It's the most legible serving engine I've read, and it made a serious hardware study possible.
 
-I built an op-level performance model from the engine's source and V4.1's checkpoint headers. Calibrated to your README's step times (3.30 ms TP4, 2.71 ms TP8), it predicts one configuration from the other within ~{{ [cal.loo.gb300_tp4.error_pct|abs, cal.loo.b300_tp8.error_pct|abs]|max|n(1) }}%.
+I built an op-level performance model from the engine's source and V4.1's checkpoint headers. It accounts for PDL, the producer-pushed NVLS all-reduces, side streams, and the padded `sgl` expert layout. Fitted to your README's step times (3.30 ms TP4, 2.71 ms TP8), it attributes ~{{ K.fixed4_ms|n(1) }} ms of each TP4 step ({{ K.fixed4_share|pct }}; {{ K.fixed_lo|pct }}-{{ K.fixed_hi|pct }} across alternative fits) to dependent-stage latency, not weight streaming.
 
-It says about {{ K.fixed4_ms|n(1) }} ms of each 3.30 ms step is fixed per-layer latency: roughly {{ (K.fixed4_ms*1000/43)|n(0) }} µs per block across ~13 dependent kernels and 2 all-reduces. HBM averages ~{{ pct(W.decode_per_gpu_tp4.total/1e9/K.meas4.step_ms/8.0) }} of peak over the step.
+Three things you might find useful:
 
-Two things you might find useful:
+1. **Software ceiling.** On the same 4x GB300 the model projects about {{ C.gpu_df_tp4.tok_s_user|n }} tok/s/user from:
+   - one persistent program with flag hand-offs;
+   - L2 prefetch of the next layers' dense weights while the current layer's experts stream;
+   - an unpadded expert layout;
+   - an all-reduce near NVLink's speed-of-light.
 
-1. The model puts the software ceiling on the same 4x GB300 at about {{ C.gpu_ideal_tp4.tok_s_user|n }} tok/s: persistent kernel, cross-layer L2 prefetch of the next layers' attention/shared weights while experts stream, and a ~2.4 µs all-reduce. The prefetch piece is the least obvious. Next-layer dense weights can stream during the current layer's gate→expert gap.
-2. One `nsys` run through your `tools/nsys_breakdown.py` would confirm or kill the diagnosis. `tools/model_vs_nsys.py` in the repo prints our prediction in your exact kernel groups ({% for g in cal.nsys_groups_tp4[:3] %}{{ g.group.split(' (')[0] }} ~{{ g.share|pct }}{% if not loop.last %}, {% endif %}{% endfor %} of the step). I'd love to compare notes if you're up for sharing a breakdown.
+   The prefetch piece is the least obvious. A layer's gate→expert gap is exactly when the next layers' attention and shared-expert weights can stream.
+2. **TP8 padding.** At TP8 the 288→384 padding of each rank's expert slice adds ~{{ ((W.layout_factor.tp8-1)*100)|n(0) }}% to routed-expert bytes, if the padding is streamed.
+3. **One profile settles it.** `tools/model_vs_nsys.py` prints the model's prediction in the exact groups of your `tools/nsys_breakdown.py`. One `nsys` run would confirm or kill the diagnosis. I'd love to compare notes if you're up for sharing a breakdown.
 
-The ASIC side, MDA-1, is a simulated projection: {{ C.asic.tok_s_user|n }} tok/s/user on 4 chips at iso-HBM bandwidth. Everything is in the repo: https://github.com/benblaine/dsv41-accel-study
+The ASIC side (MDA-1) is a simulated projection. It matches that software ceiling and wins only on $/token and W/token at volume. Everything is here: https://github.com/benblaine/dsv41-accel-study

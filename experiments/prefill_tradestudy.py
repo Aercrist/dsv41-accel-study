@@ -69,11 +69,12 @@ def trade_study() -> dict:
                    if (k.startswith("layers.") or k.startswith("mtp.") or k in ("head.weight", "embed.weight"))
                    and ".engram.embed." not in k)
     rows = []
-    for key in ("gpu_tp4", "gpu_ideal_tp4", "fpga", "asic"):
+    for key in ("gpu_tp4", "gpu_df_tp4", "fpga", "asic"):
         r = run(platform(key))
         hw = platform(key)
+        from experiments.decode_experiments import _owned
         rows.append({"option": hw.name, "chips": hw.n_chips, "tok_s_user": r["tok_s_user"], "kw": r["watts"] / 1e3,
-                     "tok_per_joule": r["tok_per_joule"], "usd_per_mtok": r["usd_per_mtok"],
+                     "tok_per_joule": r["tok_per_joule"], "usd_per_mtok": _owned(hw),
                      "hbm_or_sram_gb": hw.n_chips * hw.hbm_cap / 1e9})
     # SRAM-only dataflow (GroqChip-class: 230 MB, 80 TB/s on-die, 185 W average; src: groq)
     per_layer = resident / (s.n_layers + s.n_mtp_layers)

@@ -28,10 +28,11 @@ def murphy_yield(area_mm2: float, d0_per_cm2: float) -> float:
 
 def asic_unit_cost(hw: Hardware) -> dict:
     c = hw.cost
-    area = asic_area(hw)["total"]
+    ar = asic_area(hw)
+    area = ar["die_mm2"]
     dpw = dies_per_wafer(area)
     y = murphy_yield(area, c["d0_per_cm2"])
-    die = c["wafer_usd"] / (dpw * y)
+    die = ar["dies"] * c["wafer_usd"] / (dpw * y)
     hbm_gb = hw.hbm_cap / 1e9
     parts = {
         "die": die,
@@ -42,7 +43,8 @@ def asic_unit_cost(hw: Hardware) -> dict:
         "nre_share": c["nre_usd"] / c["volume_units"],
     }
     parts["total"] = sum(parts.values())
-    parts["area_mm2"] = area
+    parts["area_mm2"] = ar["total"]
+    parts["die_mm2"] = area
     parts["dies_per_wafer"] = dpw
     parts["yield"] = y
     return parts

@@ -2,80 +2,88 @@
 # 02 · Design rationale: what to build, and why
 
 The bottleneck ([01](01_workload.md)) decides the target. Batch-1 decode of DeepSeek-V4.1-Flash
-streams about {{ (W.decode_per_gpu_tp4.total/1e9)|n(1) }} GB per chip per step at TP4, 74% of it FP4
-routed experts that are known only after each layer's gate. Today
-{{ K.fixed4_share|pct }} of the step is fixed per-layer latency. The arithmetic needed per step
-is about {{ (W.decode_step.flops/1e9)|n(0) }} GFLOP, which a B300 could do in under 50 µs.
-**The platform must convert HBM bandwidth into tokens with almost no per-layer overhead.
-It does not need many FLOPs.**
+streams about {{ (W.decode_per_gpu_tp4.total/1e9)|n(1) }} GB per GPU per step at TP4. Most of it is FP4
+routed experts that are known only after each layer's gate. About half the step
+({{ K.fixed_lo|pct }}-{{ K.fixed_hi|pct }}) is fixed per-stage latency. The arithmetic per step is
+about {{ (W.decode_step.flops/1e9)|n(0) }} GFLOP, under 50 µs of one B300's tensor cores.
+**The platform must turn HBM bandwidth into tokens with almost no per-stage overhead. It does not need many FLOPs.**
 
 ## The options, quantified
 
-Every row below comes from the same simulator and workload (batch 1, context 2.6K, acceptance 5.6), except where marked.
+Every row comes from the same simulator and workload (batch 1, context 2.6K, acceptance 5.6).
 
-| option | chips | tok/s/user | system kW | tokens/J | $/M tok | memory capacity |
+| option | chips | tok/s/user | system kW | tokens/J | $/M tok (owned) | memory |
 |---|---|---|---|---|---|---|
 {% for r in T.rows %}
 | {{ r.option }} | {{ r.chips|n }} | {{ r.tok_s_user|n }} | {{ r.kw|n(1) }} | {{ r.tok_per_joule|n(3) }} | {% if r.usd_per_mtok is none %}no public price{% else %}{{ r.usd_per_mtok|n(2) }}{% endif %} | {{ r.hbm_or_sram_gb|n }} GB |
 {% endfor %}
 
-GPU $/M tokens is at the **market rental** price ($9.50/GPU-hr, [sources](sources.md#gpu-baseline)); the ASIC
-row is **owned TCO including NRE**. The two bases are not comparable, so [04](04_results.md#cost) also
-puts the GPU on an owned basis. The SRAM-only and wafer-scale rows are idealized first-order bounds
-(see `experiments/prefill_tradestudy.py`): they size the system by weight capacity
-({{ T.resident_weight_gb|n(0) }} GB resident) and assume optimistic fabric latencies.
+All $/M tokens are on one **owned** basis: GPUs at an assumed $45K each all-in, MDA-1 at cost plus
+amortized NRE, FPGA cards at list price plus a server share. GPU power is 60% of TDP (assumption).
+The SRAM-only and wafer-scale rows are idealized first-order bounds (`experiments/prefill_tradestudy.py`).
+They size the system by weight capacity ({{ T.resident_weight_gb|n(0) }} GB resident) and assume optimistic fabric latencies.
+
+### Software on the GPUs you already have (the counterfactual that decides everything)
+
+The cheapest accelerator is a better runtime. With the same physics as MDA-1 (same HBM efficiency,
+DRAM latency and collective speed-of-light), a dataflow-style program on 4 x GB300 projects
+**{{ C.gpu_df_tp4.tok_s_user|n }} tok/s/user**, {{ K.sw_vs_meas|x }} the measured engine. MDA-1 is
+{{ K.MC.vs_sw.p5|x(2) }}-{{ K.MC.vs_sw.p95|x(2) }} of that across the joint Monte Carlo. The software
+needs no NRE and no new hardware. It does need engineering: one persistent program per model,
+flag-based hand-offs, TMA L2 prefetch of the next layers' dense weights, an unpadded expert layout,
+and a ~1.4 µs all-reduce. Nobody has shown this for a 43-block MoE across 4 GPUs. It is the first
+thing we would build.
 
 ### FPGA (AMD Alveo V80 / Versal HBM class)
 
-* **Capacity forces 16 cards.** Each V80 has 32 GB of HBM2e at 819 GB/s, so ~300 GB of weights needs ≥10 cards (16 for power-of-two sharding). The aggregate bandwidth (13 TB/s) is less than half of 4 x GB300 (32 TB/s).
-* **Compute is thin.** The DSP58 fabric gives ~35 TFLOP/s-equivalent of FP8 per card, so the drafter and the 6-row verify GEMVs become partly compute-bound ({{ C.fpga.breakdown_ms.compute|n(2) }} ms of compute on the critical path; `results/decode.json`).
-* **Result: {{ C.fpga.tok_s_user|n }} tok/s/user, below the GPU baseline**, at {{ C.fpga.tok_per_joule|n(2) }} tok/J.
-* **What FPGA is good for here:** a zero-NRE prototype of the *control* ideas: the static schedule, the hardware router, prefetch and collectives. It can de-risk the ASIC's architecture. It is not a deployment vehicle for a 550B model.
+* **Capacity forces 16 cards.** 32 GB HBM2e at 819 GB/s per card; ~300 GB of weights needs ≥10 cards (16 for power-of-two sharding). The aggregate bandwidth, 13 TB/s, is below 4 x GB300's 32 TB/s.
+* **Compute is thin.** The DSP58 fabric gives ~35 TFLOP/s-equivalent of FP8 per card, so the drafter and 6-row verify GEMVs become partly compute-bound ({{ C.fpga.breakdown_ms.compute|n(2) }} ms of compute on the critical path).
+* **Result: {{ C.fpga.tok_s_user|n }} tok/s/user, below the GPU baseline.**
+* **What FPGA is good for here:** a zero-NRE prototype of the *control* ideas (static schedule, hardware router, prefetch, collectives) to de-risk an ASIC. Not a deployment vehicle for a 550B model.
 
 ### SRAM-only dataflow (Groq-class) and wafer-scale (Cerebras-class)
 
 * **Capacity sets chip count, not bandwidth.** {{ T.resident_weight_gb|n(0) }} GB of FP4/FP8 weights needs {{ T.rows[4].chips|n }} chips of 230 MB or {{ T.rows[5].chips }} wafers of 44 GB per model replica, at {{ T.rows[4].kw|n(0) }} kW and {{ T.rows[5].kw|n(0) }} kW.
-* **Batch-1 per-user speed can be very high,** because SRAM bandwidth is effectively unlimited (an idealized {{ T.rows[4].tok_s_user|n }} and {{ T.rows[5].tok_s_user|n }} tok/s/user).
-* **Energy per token at low batch is {{ (C.gpu_tp4.tok_per_joule / T.rows[5].tok_per_joule)|n(0) }}-{{ (C.gpu_tp4.tok_per_joule / T.rows[4].tok_per_joule)|n(0) }}x worse than the GPU.** These systems recover only by pipelining hundreds of concurrent requests through the layer groups.
-* **They are also exposed to model churn.** A 1.5k-chip replica is laid out for one model's size.
+* **Batch-1 speed can be high** in an idealized model ({{ T.rows[4].tok_s_user|n }} and {{ T.rows[5].tok_s_user|n }} tok/s/user), because SRAM bandwidth is effectively unlimited. But energy per token at low batch is {{ (C.gpu_tp4.tok_per_joule / T.rows[5].tok_per_joule)|n(0) }}-{{ (C.gpu_tp4.tok_per_joule / T.rows[4].tok_per_joule)|n(0) }}x worse than today's GPUs. These systems recover only by pipelining hundreds of concurrent requests.
 * MoE makes this worse than for dense models: {{ pct(1 - W.decode_step.distinct_experts_verify/384) }} of each layer's experts sit idle in SRAM at batch 1.
 
-### Model-specific silicon (Etched-style) vs. a decode-specialized programmable ASIC
+### Model-specific silicon (Etched-style) vs a decode-specialized programmable ASIC
 
-DeepSeek shipped V3, V3.2, V4 and V4.1 within about two years. Each changed the attention
-mechanism (MLA → DSA indexer → CSA/HCA → CSA2 with cross-layer reuse) and the KV format. A chip
-that hard-wires V4.1's dataflow risks obsolescence before it reaches volume. What *has* been stable
-across those generations, and across Kimi, GLM and Qwen MoEs, is narrower:
+DeepSeek shipped V3, V3.2, V4 and V4.1 within about two years. Each changed attention (MLA → DSA
+indexer → CSA/HCA → CSA2 with cross-layer reuse) and the KV format. A chip that hard-wires V4.1's
+dataflow risks obsolescence before volume. What has been stable across those generations, and across
+other open MoEs, is narrower:
 
 1. very low-batch decode of fine-grained MoE,
 2. FP8/FP4 block-scaled weights,
-3. top-k selection (routing and sparse-attention indexing), and
+3. top-k selection (routing and indexing), and
 4. tiny-message collectives.
 
-MDA-1 hard-wires only those primitives. Everything model-specific (layer order, CSA2 modes,
-mHC, DSpark) is a compiled static schedule.
+MDA-1 hard-wires only those primitives; everything model-specific is a compiled static schedule.
 
-### ASIC (chosen)
+### ASIC (MDA-1): what silicon adds on top of the software counterfactual
 
-An HBM-based, statically scheduled decode chip, built to match the bottleneck:
+At iso-bandwidth, MDA-1's batch-1 speed is the same as good GPU software. Silicon adds four things:
+
+1. **Cost per unit of HBM bandwidth.** About half of a B300's die area serves FLOPs this workload never uses. MDA-1 is two {{ D.comparison.asic_area_mm2.die_mm2|n(0) }} mm² dies (${{ D.comparison.asic_unit_cost.die|n(0) }} of silicon) around the same 8 stacks. The result is {{ K.usd_vs_sw|x }} lower $/M tokens than GPUs running the same software at $45K/GPU. At $25K/GPU it loses ({{ K.usd_vs_sw_lo|x(2) }}).
+2. **Energy.** {{ K.tpj_vs_sw|x }} tokens/J against the same-speed GPU if the GPU draws 60% of TDP (range {{ K.tpj_vs_sw_lo|x }}-{{ K.tpj_vs_sw_hi|x }} for 40-100%). We have not measured GPU power, so this is the softest claim here.
+3. **Latency by construction.** The static schedule *is* the dataflow execution model. It does not depend on a heroic runtime, and the 0.2 µs on-chip hand-off leaves headroom as chips are added (+{{ ((K.asic16/K.sw16-1)*100)|n(0) }}% over the GPU software at 16 chips, with the same per-peer latency assumed).
+4. **Capacity right-sizing.** Engram's {{ (W.engram.table_bytes/1e9)|n(0) }} GB of tables need {{ W.engram.lookup_bytes_per_step|si('B') }} per step, so they go to LPDDR. Weights then fit in 8-Hi stacks (192 GB), not 12-Hi.
 
 | decision | choice | reason (number from this study) |
 |---|---|---|
-| target phase | **decode only**; prefill stays on GPUs (disaggregated) | prefill is compute-bound (01 §4); KV hand-off costs only 890 B/token (≈{{ (P.ttft.scenarios[1].kv_handoff_ms)|n(2) }} ms for a 4K-token turn over 400 Gb/s RDMA) |
-| memory | 8 x HBM3E per chip at 8 TB/s (iso-bandwidth with B300) | bandwidth sets speed; iso-bandwidth isolates the architectural gain from memory-technology gains |
-| HBM capacity | 8-Hi 24 GB stacks (192 GB/chip), not 12-Hi | the weights need about 76 GB/chip at TP4; same bandwidth, lower cost |
-| Engram tables | LPDDR5X beside each chip | {{ (W.engram.table_bytes/1e9)|n(0) }} GB of tables, but {{ W.engram.lookup_bytes_per_step|si('B') }} of lookups per step, with addresses known in advance |
-| compute | 2 PF FP8 / 4 PF FP4xFP8 dense per chip (40% of B300) | batch-1 needs about 0.2 PF effective; 2 PF keeps the chip on the GPU's batch-64 frontier (04 §batch) |
-| matrix engine shape | 16 rows x wide N, weight-streaming | SCALE-Sim: a 128x128 array reaches 0.3-1.5% utilization on decode GEMVs (04 §SCALE-Sim) |
-| SRAM | 256 MiB (≥32 MB staging needed) | 32 MB of staging captures the full prefetch benefit (`fig_sram_sweep`); the rest holds KV, batch staging and scratch, and fits in die area that HBM shoreline forces on the chip anyway |
-| scheduling | static, compiler-generated, no kernels | removes the {{ K.fixed4_ms|n(1) }} ms of fixed overhead (01 §6) |
-| collectives | in-fabric all-reduce over a direct 4-chip mesh | 2 per layer on the critical path; latency set equal to the measured NVLink speed-of-light (1.4 µs) |
-| process | **TSMC N4P (N5 family)**, not N3E | SRAM bitcell is the same 0.021 µm² on N5 and N3E ([sources](sources.md)), and the die is HBM-shoreline-bound ({{ D.comparison.asic_area_mm2.total|n(0) }} mm², {{ D.comparison.asic_area_mm2.whitespace|n(0) }} mm² of it whitespace), so N3 would buy almost no area at about 20% higher wafer cost and higher NRE |
+| target phase | **decode only**; prefill stays on GPUs | prefill is compute-bound (01 §4); KV hand-off is 890 B/token ({{ (P.ttft.scenarios[1].kv_handoff_ms)|n(2) }} ms for a 4K-token turn) |
+| package | **2 dies x 4 HBM3E stacks**, die-to-die link (like B300) | an HBM3E cube is ~11 mm wide; 8 stacks cannot sit on one sub-reticle die |
+| memory | 8 x HBM3E, 8 TB/s per package (= GB300) | iso-bandwidth isolates architecture from memory technology |
+| compute | 2 PF FP8 / 4 PF FP4xFP8 per package (40% of B300) | batch-1 needs ~0.2 PF; 2 PF keeps the batch-64 frontier near the GPU's |
+| matrix engine | 16 rows x wide N, weight-streaming | SCALE-Sim: a 128x128 array reaches 0.3-1.5% utilization on decode GEMVs |
+| SRAM | 256 MiB (≥8 MB staging needed at batch 1) | dies are HBM-shoreline-bound with {{ D.comparison.asic_area_mm2.whitespace|n(0) }} mm² of whitespace, so SRAM is nearly free |
+| process | TSMC N4P (N5 family), not N3E | SRAM bitcell is 0.021 µm² on both; shoreline-bound dies; N3 wafers ~20% dearer |
+| collectives | in-fabric all-reduce, direct 4-package mesh | latency set to NVLink's computed speed-of-light (1.4 µs), with no link advantage assumed |
 
 ## What a seasoned accelerator architect would weigh
 
-* **The software counterfactual.** The best plausible GPU software (megakernel + L2 prefetch + 2.37 µs all-reduce) reaches {{ C.gpu_ideal_tp4.tok_s_user|n }} tok/s/user on the same 4 x GB300: {{ K.ideal_vs_model|x }} of today's. MDA-1 is {{ K.asic_vs_ideal|x(2) }} beyond that bound at 4 chips, and {{ (K.asic8/K.ideal8)|x(2) }} at 8. **The silicon case rests on strong scaling, energy and cost, not batch-1 speed at 4 chips.** We would tell Baseten to chase the software headroom first. It is free and nearly doubles speed.
-* **NRE amortization dominates ASIC cost.** At $300M NRE and 20K chips, NRE is ${{ D.comparison.asic_unit_cost.nre_share|n }} of the ${{ D.comparison.asic_unit_cost.total|n }} per-chip cost; the die is only ${{ D.comparison.asic_unit_cost.die|n }}. Break-even production volume against GPUs owned at $45K each is about {{ D.comparison.breakeven_volume['gpu_ideal_tp4@nre300M']|n }} chips against ideal GPU software ({{ D.comparison.breakeven_volume['gpu_tp4@nre300M']|n }} against today's), and twice that at $600M NRE (batch 1; tornado in [04](04_results.md#tornado)). At hyperscaler volumes this is easy; for a single inference provider it is the crux.
-* **Time to market.** Our assumption is about 24-30 months from start to volume for a reticle-class N4P die with HBM3E (team-dependent; not sourced). Rubin (HBM4, 19-22 TB/s) is shipping now. The comparison that matters at launch is MDA-1-HBM4 vs Rubin ([04](04_results.md#next-generation)). Rubin with today's per-layer overheads gains only {{ K.rubin_vs_gb300|pct }} over GB300 despite {{ K.rubin_bw_ratio|n(2) }}x the bandwidth.
-* **Perf/W.** {{ C.asic.tok_per_joule|n(2) }} vs {{ C.gpu_tp4.tok_per_joule|n(2) }} tokens/J ({{ K.tpj_ratio|x }}). About half comes from finishing the step sooner; the other half from not carrying 5 PF of idle tensor cores. The GPU figure is an assumption (60% of TDP, swept 40-100%).
-* **Risk register.** HBM3E supply and CoWoS capacity (shared with the GPU vendors), the compiler (a static scheduler for a new model per quarter), the 1.4 µs collective target, and dependence on low-batch, latency-priced demand. If the market prices only throughput, GPUs at batch 256 are within {{ (K.b256_gpu.tok_s_system/K.b256_asic.tok_s_system)|x(2) }} of MDA-1 per 4 chips.
+* **The software counterfactual dominates the decision.** If Baseten can ship the dataflow-style runtime, most of MDA-1's speed comes for free on hardware they already run. Build silicon only for $/token and W/token at scale.
+* **NRE amortization dominates ASIC cost.** At $300M NRE and 20K packages, NRE is ${{ D.comparison.asic_unit_cost.nre_share|n }} of ${{ D.comparison.asic_unit_cost.total|n }} per package. Break-even against GPUs running the same software at $45K/GPU is about {{ K.be_sw_300|n(-3) }} packages ($300M NRE) or {{ K.be_sw_600|n(-3) }} ($600M). At hyperscaler volume that is easy; for a single inference provider it is the crux.
+* **Time to market.** Our assumption: 24-30 months to volume for an N4P two-die package with HBM3E (team-dependent; not sourced). Rubin ships now. Rubin with dataflow-style software projects {{ C.rubin_df_tp4.tok_s_user|n }} tok/s/user; MDA-1-HBM4 at the same bandwidth, {{ C.asic_hbm4.tok_s_user|n }}.
+* **Risk register.** HBM and CoWoS supply (shared with GPU vendors); a static-schedule compiler that keeps up with a new model each quarter; the collective-latency target; demand that pays for low-latency tokens. If the market prices only throughput, GPUs with the same software are {{ (K.b256_sw.tok_s_system/K.b256_asic.tok_s_system)|x(2) }} ahead of MDA-1 per 4 chips at batch 256. MDA-1 carries 40% of their FLOPs.
