@@ -6,17 +6,20 @@ All numbers are modeled projections from the repo, except Baseten's published {{
 
 ## X thread
 
-**1/**
-DeepSeek-V4.1-Flash decode has ~2x headroom, and purpose-built silicon can deliver it at ~{{ K.usd_vs_gpu|x(0) }} lower cost per token.
+Free X accounts allow 280 characters per post, with every link counted as 23. Each post below fits;
+`tools/check_post_length.py` verifies it. Attach the listed image to each post.
 
-At Aercrist we modeled Baseten's deepseek-ultrafast ({{ K.meas4.decode_tok_s|n }} tok/s/user on 4x GB300) from its source code and the model's checkpoint to find out where the time goes. 🧵
+**1/**
+DeepSeek-V4.1-Flash decode has ~2x headroom, and purpose-built silicon could deliver it at ~{{ K.usd_vs_gpu|x(0) }} lower cost per token.
+
+We modeled Baseten's deepseek-ultrafast ({{ K.meas4.decode_tok_s|n }} tok/s on 4x GB300) to find where the time goes. 🧵
 
 📎 `results/fig_step_breakdown.png`
 
 ![Where a decode step goes](results/fig_step_breakdown.png)
 
 **2/**
-About half of each 3.3 ms decode step is spent waiting between dependent steps (~{{ (K.fixed4_ms*1000/43)|n(0) }} µs per transformer block), not moving weights.
+About half of each 3.3 ms decode step is waiting between dependent steps, not moving weights.
 
 That's why 8 GPUs are only {{ K.tp8_gain|pct }} faster per step than 4: more GPUs speed up the streaming, not the waiting.
 
@@ -25,7 +28,7 @@ That's why 8 GPUs are only {{ K.tp8_gain|pct }} faster per step than 4: more GPU
 ![Strong scaling](results/fig_strong_scaling.png)
 
 **3/**
-Win #1 needs no new hardware. Run the model as one persistent program with flag hand-offs, and stream the next layers' weights while this layer's experts load.
+Win #1 needs no new hardware: one persistent program, plus streaming the next layers' weights while experts load.
 
 Same 4x GB300, modeled: {{ C.gpu_df_tp4.tok_s_user|n }} tok/s/user, {{ K.sw_vs_meas|x }} today.
 
@@ -34,47 +37,46 @@ Same 4x GB300, modeled: {{ C.gpu_df_tp4.tok_s_user|n }} tok/s/user, {{ K.sw_vs_m
 ![Ablation](results/fig_ablation.png)
 
 **4/**
-Win #2 is silicon built for exactly this. Our MDA-1 design is a decode ASIC with the same 8 TB/s HBM, 2 PF FP8, a hardware MoE router (RTL-verified) and in-fabric all-reduce.
+Win #2 is silicon built for exactly this. Our MDA-1 decode ASIC design has the same 8 TB/s HBM, a hardware MoE router and in-fabric all-reduce.
 
-It reaches {{ C.asic.tok_s_user|n }} tok/s/user, {{ pct(C.asic.tok_s_user / K.roofline) }} of its memory roofline, and {{ K.MC.vs_gpu_measured.p5|x }}-{{ K.MC.vs_gpu_measured.p95|x }} today's speed across a joint uncertainty analysis.
+Modeled: {{ C.asic.tok_s_user|n }} tok/s/user, {{ K.MC.vs_gpu_measured.p5|x }}-{{ K.MC.vs_gpu_measured.p95|x }} today's speed under joint uncertainty.
 
 📎 `results/fig_monte_carlo.png`
 
 ![Monte Carlo](results/fig_monte_carlo.png)
 
 **5/**
-It's also far cheaper to run: ~{{ K.usd_vs_gpu|x }} lower $/token and ~{{ K.tpj_vs_gpu|x }} more tokens per joule than today's engine.
+It's also cheaper to run: ~{{ K.usd_vs_gpu|x }} lower $/token and ~{{ K.tpj_vs_gpu|x }} more tokens/J than today's engine.
 
-Even against GPUs running the improved software, MDA-1 stays ~{{ K.usd_vs_sw|x }} cheaper and ~{{ K.tpj_vs_sw|x }} more efficient. The GPU price and power assumptions, with ranges, are in the repo.
+Against GPUs running the improved software, it's still ~{{ K.usd_vs_sw|x }} cheaper and ~{{ K.tpj_vs_sw|x }} more efficient.
 
 📎 `results/fig_batch_frontier.png`
 
 ![Cost vs interactivity](results/fig_batch_frontier.png)
 
 **6/**
-The gains compound. Once the waiting is gone, more memory bandwidth finally pays: Rubin running that execution model, or MDA-1 with HBM4, projects ~{{ C.rubin_df_tp4.tok_s_user|n(-2) }} tok/s/user, {{ (C.rubin_df_tp4.tok_s_user / K.meas4.decode_tok_s)|x }} today.
+The gains compound. Once the waiting is gone, bandwidth pays: Rubin with this execution model, or MDA-1 with HBM4, projects ~{{ C.rubin_df_tp4.tok_s_user|n(-2) }} tok/s/user, {{ (C.rubin_df_tp4.tok_s_user / K.meas4.decode_tok_s)|x }} today.
 
 📎 `results/fig_hbm_sweep.png`
 
 ![HBM sweep](results/fig_hbm_sweep.png)
 
 **7/**
-What we learned along the way:
-• A classic 128x128 systolic array runs these decode GEMVs at 0.3-1.5% utilization (SCALE-Sim). The right engine is 16 rows wide.
-• Engram's 203 GB of tables need only ~{{ (W.engram.lookup_bytes_per_step / (K.meas4.step_ms/1e3) / 1e6)|n(0) }} MB/s, so they belong in cheap LPDDR, not HBM.
-• Our model reproduces DeepSeek's published 552B params and 890 B/token KV straight from the checkpoint.
-• It held up through two rounds of adversarial review.
+What we learned:
+• A 128x128 systolic array runs these decode GEMVs at 0.3-1.5% utilization
+• Engram's 203 GB of tables need only ~{{ (W.engram.lookup_bytes_per_step / (K.meas4.step_ms/1e3) / 1e6)|n(0) }} MB/s: use LPDDR, not HBM
+• The study survived two adversarial reviews
 
 📎 `results/fig_roofline.png`
 
 ![Roofline](results/fig_roofline.png)
 
 **8/**
-Everything is open and reproducible: the simulator, calibration against Baseten's numbers, the Monte Carlo, the ablation and the router RTL. `make reproduce`.
+All open and reproducible: simulator, calibration, Monte Carlo, router RTL. `make reproduce`
 
-Thanks to @basetenco for open-sourcing deepseek-ultrafast and to @deepseek_ai for V4.1.
+Thanks @basetenco for open-sourcing deepseek-ultrafast.
 
-→ https://github.com/Aercrist/dsv41-accel-study
+https://github.com/Aercrist/dsv41-accel-study
 
 ## LinkedIn
 
