@@ -1,0 +1,184 @@
+{
+ "prefill": {
+  "model_vs_measured": [
+   {
+    "config": "gb300_tp4",
+    "mfu": 0.3,
+    "model_s": 3.407542,
+    "measured_s": 13.2,
+    "parts_s": {
+     "weights": 0.66313,
+     "compute": 2.512917,
+     "topk": 0.093767,
+     "coll": 0.707554,
+     "ovh": 0.083527
+    },
+    "pflop": 23.298806
+   },
+   {
+    "config": "gb300_tp4",
+    "mfu": 0.5,
+    "model_s": 2.402466,
+    "measured_s": 13.2,
+    "parts_s": {
+     "weights": 0.66313,
+     "compute": 1.50775,
+     "topk": 0.093767,
+     "coll": 0.707554,
+     "ovh": 0.083527
+    },
+    "pflop": 23.298806
+   },
+   {
+    "config": "gb300_tp4",
+    "mfu": 0.7,
+    "model_s": 1.97172,
+    "measured_s": 13.2,
+    "parts_s": {
+     "weights": 0.66313,
+     "compute": 1.076964,
+     "topk": 0.093767,
+     "coll": 0.707554,
+     "ovh": 0.083527
+    },
+    "pflop": 23.298806
+   },
+   {
+    "config": "b300_tp8",
+    "mfu": 0.3,
+    "model_s": 2.352916,
+    "measured_s": 11.7,
+    "parts_s": {
+     "weights": 0.345943,
+     "compute": 1.396065,
+     "topk": 0.046884,
+     "coll": 0.821346,
+     "ovh": 0.083527
+    },
+    "pflop": 23.298806
+   },
+   {
+    "config": "b300_tp8",
+    "mfu": 0.5,
+    "model_s": 1.794541,
+    "measured_s": 11.7,
+    "parts_s": {
+     "weights": 0.345943,
+     "compute": 0.837639,
+     "topk": 0.046884,
+     "coll": 0.821346,
+     "ovh": 0.083527
+    },
+    "pflop": 23.298806
+   },
+   {
+    "config": "b300_tp8",
+    "mfu": 0.7,
+    "model_s": 1.555237,
+    "measured_s": 11.7,
+    "parts_s": {
+     "weights": 0.345943,
+     "compute": 0.598314,
+     "topk": 0.046884,
+     "coll": 0.821346,
+     "ovh": 0.083527
+    },
+    "pflop": 23.298806
+   }
+  ],
+  "fit_k_tp4": 5.494353,
+  "pred_tp8_s": 9.859843,
+  "pred_tp8_err_pct": -15.727839,
+  "measured_tp_speedup": 1.128205,
+  "model_tp_speedup": 1.338764
+ },
+ "ttft": {
+  "scenarios": [
+   {
+    "scenario": "short prompt (60 tokens, cold)",
+    "gpu_ttft_s": 0.050037,
+    "hybrid_ttft_s": 0.048172,
+    "kv_handoff_ms": 0.048102,
+    "kv_mb": 1.40508,
+    "asic_standalone_ttft_s": 0.038326
+   },
+   {
+    "scenario": "agent turn: 200K cached + 4K new",
+    "gpu_ttft_s": 0.08749,
+    "hybrid_ttft_s": 0.085696,
+    "kv_handoff_ms": 0.119942,
+    "kv_mb": 4.99712,
+    "asic_standalone_ttft_s": 0.133763
+   },
+   {
+    "scenario": "cold 128K prompt",
+    "gpu_ttft_s": 1.569817,
+    "hybrid_ttft_s": 1.570284,
+    "kv_handoff_ms": 2.380115,
+    "kv_mb": 118.00576,
+    "asic_standalone_ttft_s": 3.227289
+   }
+  ],
+  "kv_link_gb_s": 50.0
+ },
+ "trade_study": {
+  "resident_weight_gb": 306.557443,
+  "rows": [
+   {
+    "option": "4x GB300, deepseek-ultrafast (calibrated)",
+    "chips": 4,
+    "tok_s_user": 1696.969659,
+    "kw": 3.36,
+    "tok_per_joule": 0.50505,
+    "usd_per_mtok": 6.220238,
+    "hbm_or_sram_gb": 1152.0
+   },
+   {
+    "option": "4x GB300, ideal software (bound)",
+    "chips": 4,
+    "tok_s_user": 3151.48193,
+    "kw": 3.36,
+    "tok_per_joule": 0.937941,
+    "usd_per_mtok": 3.349394,
+    "hbm_or_sram_gb": 1152.0
+   },
+   {
+    "option": "16x Alveo V80 FPGA",
+    "chips": 16,
+    "tok_s_user": 1179.016813,
+    "kw": 2.432,
+    "tok_per_joule": 0.484793,
+    "usd_per_mtok": 1.361205,
+    "hbm_or_sram_gb": 512.0
+   },
+   {
+    "option": "MDA-1 ASIC x4 (proposed)",
+    "chips": 4,
+    "tok_s_user": 4039.530656,
+    "kw": 1.646621,
+    "tok_per_joule": 2.453225,
+    "usd_per_mtok": 0.240315,
+    "hbm_or_sram_gb": 768.0
+   },
+   {
+    "option": "SRAM-only dataflow (GroqChip-class) (1518 chips, 35 per layer)",
+    "chips": 1518,
+    "tok_s_user": 9461.80463,
+    "kw": 280.83,
+    "tok_per_joule": 0.033692,
+    "usd_per_mtok": null,
+    "hbm_or_sram_gb": 349.14
+   },
+   {
+    "option": "Wafer-scale (WSE-3-class, 8 wafers)",
+    "chips": 8,
+    "tok_s_user": 7813.111687,
+    "kw": 184.0,
+    "tok_per_joule": 0.042463,
+    "usd_per_mtok": null,
+    "hbm_or_sram_gb": 352
+   }
+  ],
+  "notes": "SRAM-only and wafer-scale rows are idealized first-order bounds, not predictions: per-layer chip groups (or wafers) with assumed fabric latencies; public demos of large MoEs on such systems are far slower. No public chip prices, so no $/token. They are here for capacity and power."
+ }
+}

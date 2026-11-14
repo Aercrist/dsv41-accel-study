@@ -19,7 +19,7 @@ all 64 query heads) is read by every rank.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from .modelspec import ModelSpec
 from .routing import distinct_experts
@@ -46,6 +46,11 @@ class Op:
     rows: int = 1  # activation rows (GEMM M)
     n_kernels: int = 1  # GPU kernels this op maps to in deepseek-ultrafast (approximate)
     serial_rounds: int = 1  # inherently sequential rounds inside the op (Markov head)
+    out_w: int = 0  # output width per row (for gathering a sharded replicated op)
+    mb: int = 0  # micro-batch id
+    deps: list = field(default_factory=list)  # op indices this op waits for (default: previous op)
+    twin: int = -1  # op whose weight fetch this op reuses (second micro-batch)
+    rows_eff: float = 0.0  # GEMM M actually seen by the matrix engine (routed: rows per expert)
     category: str = ""  # for breakdowns
 
     def total_flops(self) -> float:
@@ -63,6 +68,14 @@ class DecodeWorkload:
     verify_head: str = "fp8"  # 'fp8' on GB300 TP4 (ops::verify_head_fp8), 'bf16' otherwise
     draft_head: str = "fp8"
     act_bytes: int = 2  # bf16 activations on the wire
+    # Shard the projections the GPU engine replicates (wqkv, indexer wq_b, compressor, gate,
+    # mHC, idx weights) and all-gather their small outputs instead. Trades ~0.74 GB/chip/step
+    # of replicated weight reads for one extra small collective per replicated op.
+    shard_replicated: bool = False
+    # Split the batch into independent micro-batches whose ops interleave, so one micro-batch's
+    # attention/compute overlaps the other's expert streaming (DeepSeek-style two-batch
+    # overlap). None = 2 when batch >= 2, else 1. Weights are fetched once and shared.
+    microbatches: int | None = None
 
     @property
     def rv(self) -> int:
@@ -102,8 +115,11 @@ def _block(s: ModelSpec, wl: DecodeWorkload, phase: str, l: int, rows: int, mtp:
         ops.append(_gemv("engram_wkv", phase, l, n_cols * s.engram_head_dim, D * (s.hc_mult + 1), rows, "fp8",
                          w_tp=s.wbytes("layers.*.engram.wkv"), kernels=2, cat="engram"))
 
-    ops.append(Op("hc_attn", phase, l, "vector", w_rep=hc_b, rows=rows, flops_rep={"fp32": hc_f + sink}, n_kernels=1, category="mhc"))
-    ops.append(_gemv("wqkv", phase, l, D, s.q_lora_rank + s.head_dim, rows, "fp8", w_rep=ab["wq_a"] + ab["wkv"], cat="attn_proj"))
+    ops.append(Op("hc_attn", phase, l, "vector", w_rep=hc_b, rows=rows, flops_rep={"fp32": hc_f + sink}, n_kernels=1, category="mhc",
+                  out_w=(2 + s.hc_mult) * s.hc_mult * 2))
+    op = _gemv("wqkv", phase, l, D, s.q_lora_rank + s.head_dim, rows, "fp8", w_rep=ab["wq_a"] + ab["wkv"], cat="attn_proj")
+    op.out_w = s.q_lora_rank + s.head_dim
+    ops.append(op)
 
     is_index = role in ("full", "reindex")
     nq_i = s.index_n_heads * s.index_head_dim
@@ -111,6 +127,7 @@ def _block(s: ModelSpec, wl: DecodeWorkload, phase: str, l: int, rows: int, mtp:
     if is_index:
         op.w_rep = s.wbytes("layers.*.attn.indexer.wq_b")
         op.flops_rep = {"fp8": 2.0 * rows * s.q_lora_rank * nq_i}
+        op.out_w = nq_i
     ops.append(op)
 
     if role == "full":  # compressor + index-key projection on the new rows
@@ -118,14 +135,15 @@ def _block(s: ModelSpec, wl: DecodeWorkload, phase: str, l: int, rows: int, mtp:
         cb = s.tensors["layers.*.attn.compressor.wkv.weight"].bytes_each * (2 if r > 1 else 1)
         cb += s.tensors["layers.*.attn.indexer.wk.weight"].bytes_each
         f = 2.0 * rows * D * s.head_dim * (2 if r > 1 else 1) + 2.0 * rows * s.head_dim * s.index_head_dim
-        ops.append(Op("compressor", phase, l, "gemv", w_rep=cb, rows=rows, flops_rep={"bf16": f}, n_kernels=2, category="indexer"))
+        ops.append(Op("compressor", phase, l, "gemv", w_rep=cb, rows=rows, flops_rep={"bf16": f}, n_kernels=2, category="indexer",
+                      out_w=s.head_dim * (2 if r > 1 else 1) + s.index_head_dim))
 
     if is_index:
         n_scan = s.index_scan_entries(l, ctx)
         e_idx = s.kv_entry_bytes["index"]
         wp = s.tensors["layers.*.attn.indexer.weights_proj.weight"].bytes_each
         ops.append(Op("idx_weights", phase, l, "gemv", w_rep=wp, rows=rows, flops_rep={"bf16": 2.0 * rows * D * s.index_n_heads},
-                      n_kernels=1, category="indexer"))
+                      n_kernels=1, category="indexer", out_w=s.index_n_heads))
         # scores: every query row against the shared index K; rows of one sequence share the K read
         ops.append(Op("idx_score", phase, l, "indexer", kv_tp=wl.batch * n_scan * e_idx, rows=rows,
                       flops={"fp4": 2.0 * rows * nq_i * n_scan, "fp32": 2.0 * rows * s.index_n_heads * n_scan},
@@ -150,24 +168,68 @@ def _block(s: ModelSpec, wl: DecodeWorkload, phase: str, l: int, rows: int, mtp:
     ops.append(_gemv("wo_b", phase, l, s.o_groups * s.o_lora_rank, D, rows, "fp8", w_tp=ab["wo_b"], cat="attn_proj"))
     ops.append(Op("ar_attn", phase, l, "collective", coll=rows * D * A, rows=rows, n_kernels=1, category="collective"))
 
-    ops.append(Op("hc_ffn", phase, l, "vector", w_rep=hc_b, rows=rows, flops_rep={"fp32": hc_f + sink}, n_kernels=1, category="mhc"))
+    ops.append(Op("hc_ffn", phase, l, "vector", w_rep=hc_b, rows=rows, flops_rep={"fp32": hc_f + sink}, n_kernels=1, category="mhc",
+                  out_w=(2 + s.hc_mult) * s.hc_mult * 2))
     n_exp = s.dspark_n_routed_experts if mtp else s.n_routed_experts
     k = s.dspark_n_activated_experts if mtp else s.n_activated_experts
     gb = s.tensors[f"{pre}.ffn.gate.weight"].bytes_each
     ops.append(Op("gate", phase, l, "router", w_rep=gb, rows=rows, flops_rep={"bf16": 2.0 * rows * D * n_exp, "fp32": 8.0 * rows * n_exp},
-                  n_kernels=1, category="router"))
+                  n_kernels=1, category="router", out_w=n_exp * 2))
     inter = s.moe_inter_dim
     ops.append(Op("shared_expert", phase, l, "moe", w_tp=s.shared_expert_bytes, rows=rows,
                   flops={"fp8": 2.0 * rows * 3 * D * inter}, n_kernels=0, category="moe_shared"))
     d = distinct_experts(rows, k, n_exp, wl.locality)
     eb = s.mtp_expert_bytes if mtp else s.expert_bytes
-    ops.append(Op("routed_experts", phase, l, "moe", w_dyn=d * eb, rows=rows,
+    ops.append(Op("routed_experts", phase, l, "moe", w_dyn=d * eb, rows=rows, rows_eff=rows * k / d,
                   flops={"fp4": 2.0 * rows * k * 3 * D * inter}, n_kernels=2, category="moe_routed"))
     ops.append(Op("ar_ffn", phase, l, "collective", coll=rows * D * A, rows=rows, n_kernels=1, category="collective"))
     return ops
 
 
 def decode_step(s: ModelSpec, wl: DecodeWorkload) -> list[Op]:
+    mbs = wl.microbatches if wl.microbatches is not None else (2 if wl.batch >= 2 else 1)
+    if mbs == 1:
+        ops = _step_ops(s, wl)
+        for i, o in enumerate(ops):
+            o.deps = [i - 1] if i else []
+    else:
+        if mbs != 2 or wl.batch % 2:
+            raise ValueError("micro-batching supports 2 micro-batches of equal size")
+        half = replace(wl, batch=wl.batch // 2, microbatches=1)
+        a, b = _step_ops(s, half), _step_ops(s, half)
+        assert len(a) == len(b)
+        ops = []
+        for x, y in zip(a, b):
+            ia = len(ops)
+            x.mb, y.mb = 0, 1
+            x.deps = [ia - 2] if ia else []
+            y.deps = [ia - 1] if ia else []
+            y.twin = ia
+            if y.name == "routed_experts":  # B fetches only the experts A did not
+                n_exp = s.dspark_n_routed_experts if y.phase == "draft" else s.n_routed_experts
+                k = s.dspark_n_activated_experts if y.phase == "draft" else s.n_activated_experts
+                eb = s.mtp_expert_bytes if y.phase == "draft" else s.expert_bytes
+                d1 = distinct_experts(y.rows, k, n_exp, wl.locality)
+                d2 = distinct_experts(2 * y.rows, k, n_exp, wl.locality)
+                y.w_dyn = (d2 - d1) * eb
+            else:
+                y.w_tp = y.w_rep = 0.0
+            ops.extend([x, y])
+        for i, o in enumerate(ops):
+            o.deps = [d for d in o.deps if d >= 0]
+    if wl.shard_replicated:
+        for o in ops:
+            if o.w_rep > 0 and o.out_w > 0:
+                o.w_tp += o.w_rep
+                o.w_rep = 0.0
+                for k, v in o.flops_rep.items():
+                    o.flops[k] = o.flops.get(k, 0.0) + v
+                o.flops_rep = {}
+                o.gather += o.rows * o.out_w * 4.0  # fp32 partials / outputs
+    return ops
+
+
+def _step_ops(s: ModelSpec, wl: DecodeWorkload) -> list[Op]:
     ops: list[Op] = []
     D, V = s.dim, s.vocab_size
     rv, rd, B = wl.rv, wl.rd, wl.batch

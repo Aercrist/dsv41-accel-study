@@ -1,0 +1,7 @@
+# Projection: the same 4 x GB300 with a hypothetical persistent "megakernel" runtime that
+# removes kernel launches. Each former kernel boundary still costs a device-wide barrier
+# (all SMs must finish a dependent stage before the next starts); collectives unchanged.
+# A software projection for comparison, not a measured system.
+extends: gb300_tp4.yaml
+name: 4x GB300, fused megakernel (projected)
+kernel_overhead: 1.0e-6   # "each barrier will incur more than 1 us of overhead"; src: ar-latency

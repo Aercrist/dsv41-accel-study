@@ -1,33 +1,34 @@
-# NVIDIA B300 (Blackwell Ultra) GPU as used by deepseek-ultrafast. Per-GPU values.
-# Every constant cites docs/sources.md by key. Values marked `calibrated` are overwritten by
-# sim/calibrate.py; the value here is only the starting point / leave-one-out prior.
+# NVIDIA Blackwell Ultra GPU as used by deepseek-ultrafast. Per-GPU values; every constant
+# cites a key in docs/sources.md. `calibrated` values are overwritten by sim/calibrate.py and
+# the number here is only the leave-one-out prior.
 name: B300
 kind: gpu
 n_chips: 8
-hbm_bw: 8.0e12            # src: nv-b300 (HBM3E, 8 TB/s)
-hbm_cap: 288.0e9          # src: nv-b300
-hbm_eff: 0.90             # prior for leave-one-out; src: bw-microbench. calibrated
-peak:                     # dense tensor-core FLOP/s; src: nv-b300
-  fp4: 15.0e15
-  fp8: 5.0e15
-  bf16: 2.5e15
-  fp32: 0.075e15          # non-tensor FP32 (vector ops)
+hbm_bw: 7.7e12            # HGX B300 SXM: 7.7 TB/s; src: lenovo-b300
+hbm_cap: 288.0e9          # src: nv-bw-ultra
+hbm_eff: 0.935            # prior = B200 STREAM triad 7.48/8.0 TB/s; src: stream-b200. calibrated
+peak:                     # dense tensor-core FLOP/s (HGX B300); src: lenovo-b300, nv-hgx
+  fp4: 13.5e15
+  fp8: 4.5e15
+  bf16: 2.25e15
+  fp32: 0.075e15          # non-tensor FP32 for vector ops (assumption; only matters at batch >> 1)
 mm_eff: 0.7               # achievable fraction when compute-bound (assumption; decode is not)
 topk_rate: 2.0e12         # top-k elements/s (assumption; only matters at long context)
-link_bw: 900.0e9          # NVLink 5: 1.8 TB/s bidirectional per GPU; src: nv-b300
-coll_latency: 4.0e-6      # small-message one-shot all-reduce floor; src: ar-latency
+link_bw: 900.0e9          # NVLink 5: 1.8 TB/s bidirectional per GPU; src: nv-bw-ultra
+coll_latency: 5.0e-6      # "small-message AllReduce completes in roughly 5 us on four GPUs"; src: ar-latency
 prefetch: false
-kernel_overhead: 2.0e-6   # calibrated
+kernel_overhead: 2.0e-6   # calibrated (prior: CUDA-graph launch ~1.3 us + barrier >1 us; src: launch-overhead)
 serial_round_latency: 1.0e-6
 step_overhead: 0.0
-engram_in_hbm: true       # deepseek-ultrafast shards the Engram tables across GPU HBM
-tdp_w: 1100               # src: nv-b300
+engram_in_hbm: true       # deepseek-ultrafast shards the Engram tables across GPU HBM (weights.rs)
+tdp_w: 1100               # HGX B300 TDP; src: lenovo-b300
 power:
   model: tdp
-  load_fraction: 0.6      # assumption (swept): batch-1 decode leaves HBM ~40% idle
+  load_fraction: 0.6      # assumption (swept 0.4-1.0): batch-1 decode leaves HBM ~60% idle
 cost:
-  rental_usd_per_gpu_hour: 6.0     # src: gpu-rental
-  purchase_usd_per_gpu: 50000      # src: gpu-price (system share included)
+  rental_usd_per_gpu_hour: 9.50    # B300 market median on-demand, 2026-11-14; src: gpu-rental
+  purchase_usd_per_gpu: 45000      # all-in per GPU incl. server/network share. ASSUMPTION (no public
+                                   # B300 price; swept 25-65K). Epoch's B200 BOM is ~$6.4K (src: epoch-b200)
   lifetime_years: 4
-  pue: 1.3                # src: tco-power
-  usd_per_kwh: 0.08       # src: tco-power
+  pue: 1.44               # src: pue
+  usd_per_kwh: 0.0862     # src: electricity

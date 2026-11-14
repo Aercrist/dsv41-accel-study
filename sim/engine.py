@@ -3,25 +3,29 @@
 All chips of the TP group run the same program on their shard, so one chip is simulated and
 collectives are costed with `Hardware.coll_time`. Resources:
 
-  * compute: executes ops in program order (the step is a dependency chain);
+  * compute: issues ops in program order; an op occupies it for its compute time only, so a
+    later independent op (other micro-batch) can run while an earlier op waits for data;
   * HBM: a bandwidth server that moves weight/KV bytes in chunks. Which chunk goes next is
     chosen work-conservingly by program order among the chunks that are *ready*;
-  * links: collectives (latency + bytes / bandwidth), on the critical path.
+  * links: collectives (latency + bytes / bandwidth), on the issuing chain's critical path.
 
-The two execution policies differ only in when a chunk becomes ready:
+An op starts when its dependencies have ended and the compute front has issued every earlier
+op; it ends when its compute is done and all its bytes (and its twin's shared weights) have
+arrived. The two execution policies differ only in when a chunk becomes ready:
 
   * `prefetch=False` (GPU kernels): an op's bytes are fetched by its own kernel, so they are
     ready when the op starts, and every op pays `kernel_overhead` per kernel boundary.
   * `prefetch=True` (statically scheduled dataflow): weights whose addresses are known ahead
     of time (everything except routed experts and top-k-selected KV) stream in as early as the
     staging buffer (`stage_bytes`) allows; routed-expert fetches are issued `router_latency`
-    after the gate op finishes; each op pays `op_overhead` of pipeline fill/drain.
+    after their gate op ends; each op pays `op_overhead` of pipeline fill/drain.
 
-Times are in seconds.
+For a single sequence (batch 1) the ops form a chain and this reduces to
+end_i = max(end_{i-1} + overhead_i + t_comp_i, fetch_done_i) + t_coll_i. Times in seconds.
 """
 from __future__ import annotations
 
-import bisect
+import math
 from dataclasses import dataclass, field
 
 from .hardware import Hardware
@@ -29,6 +33,7 @@ from .workload import Op
 
 CHUNK = 4 << 20  # HBM scheduling granularity (bytes)
 LOOKAHEAD = 256  # chunks the prefetcher considers at once
+INF = float("inf")
 
 
 @dataclass
@@ -49,8 +54,8 @@ class StepResult:
     timings: list[OpTiming]
     hbm_busy: float
     hbm_bytes: float
-    breakdown: dict = field(default_factory=dict)  # exposed time by cause
-    by_category: dict = field(default_factory=dict)  # exposed time by op category
+    breakdown: dict = field(default_factory=dict)  # critical-path time by cause
+    by_category: dict = field(default_factory=dict)  # critical-path time by op category
 
 
 def _op_costs(op: Op, hw: Hardware, hit_rate: float):
@@ -61,16 +66,17 @@ def _op_costs(op: Op, hw: Hardware, hit_rate: float):
     dyn = op.w_dyn / n * (1.0 - hit_rate) + op.kv_rep
     sram_t = (op.w_dyn / n * hit_rate) / hw.sram_bw if (hit_rate > 0 and hw.sram_bw > 0) else 0.0
     if op.kind == "topk":
-        elems = op.flops.get("fp32", 0.0) / 4.0 / n
-        t_comp = elems / hw.topk_rate
+        t_comp = op.flops.get("fp32", 0.0) / 4.0 / n / hw.topk_rate
     else:
         t_comp = 0.0
         for p in set(op.flops) | set(op.flops_rep):
             f = op.flops.get(p, 0.0) / n + op.flops_rep.get(p, 0.0)
-            if f <= 0:
-                continue
-            eff = 1.0 if op.kind in ("vector", "router") else hw.mm_eff
-            t_comp += f / (hw.peak[p] * eff)
+            if f > 0:
+                eff = 1.0 if op.kind in ("vector", "router") else hw.mm_eff
+                if hw.array_rows and op.kind in ("gemv", "moe", "attn", "indexer"):
+                    m = op.rows_eff or op.rows  # routed experts: rows per expert
+                    eff *= m / (math.ceil(m / hw.array_rows) * hw.array_rows) if m >= 1 else m / hw.array_rows
+                t_comp += f / (hw.peak[p] * eff)
     t_coll = hw.coll_time(op.coll)
     if op.gather > 0 and n > 1:
         t_coll += hw.coll_latency + op.gather * (n - 1) / hw.link_bw
@@ -88,17 +94,18 @@ def simulate_step(ops: list[Op], hw: Hardware, hit_rate: float = 0.0) -> StepRes
     n_ops = len(ops)
     costs = [_op_costs(o, hw, hit_rate) for o in ops]
     bw = hw.hbm_bw * hw.hbm_eff
+    deps = [o.deps if (o.deps or i == 0) else [i - 1] for i, o in enumerate(ops)]
 
-    # source op of each data-dependent fetch: routed experts wait for the most recent gate
+    # routed experts wait for the most recent gate of the same micro-batch
     src = [-1] * n_ops
-    last_gate = -1
+    last_gate: dict[int, int] = {}
     for i, o in enumerate(ops):
         if o.kind == "router":
-            last_gate = i
-        src[i] = last_gate if o.name == "routed_experts" else i - 1
+            last_gate[o.mb] = i
+        if o.name == "routed_experts":
+            src[i] = last_gate.get(o.mb, -1)
 
-    # chunk list in program order: (op, is_dynamic, bytes, first_of_request)
-    chunks: list[tuple[int, bool, float, bool]] = []
+    chunks: list[tuple[int, bool, float, bool]] = []  # (op, dynamic, bytes, first of request)
     remaining = [0] * n_ops
     for i, (st, dy, *_rest) in enumerate(costs):
         for dyn, b in ((False, st), (True, dy)):
@@ -110,82 +117,80 @@ def simulate_step(ops: list[Op], hw: Hardware, hit_rate: float = 0.0) -> StepRes
                 b -= c
                 first = False
 
-    ends: list[float | None] = [None] * n_ops
     starts: list[float | None] = [None] * n_ops
+    ends: list[float | None] = [None] * n_ops
     fetch_done = [0.0] * n_ops
     hbm_bytes_op = [0.0] * n_ops
-    pending = list(range(len(chunks)))  # indices into chunks, program order
+    compute_free = 0.0
+    i_start = 0
+    open_ops: list[int] = []  # started, not ended
+    issued_static: dict[int, float] = {}  # op -> static bytes issued, not yet consumed
+
+    def propagate() -> None:
+        nonlocal i_start, compute_free
+        changed = True
+        while changed:
+            changed = False
+            # start ops in program order
+            while i_start < n_ops:
+                i = i_start
+                dep_end = 0.0
+                ok = True
+                for d in deps[i]:
+                    if ends[d] is None:
+                        ok = False
+                        break
+                    dep_end = max(dep_end, ends[d])
+                if not ok:
+                    break
+                _s, _d, sram_t, t_comp, _c, ovh = costs[i]
+                starts[i] = max(compute_free, dep_end) + ovh
+                if ops[i].kind != "collective":
+                    compute_free = starts[i] + t_comp + sram_t
+                open_ops.append(i)
+                i_start += 1
+                changed = True
+            # end ops whose data has arrived
+            for i in list(open_ops):
+                tw = ops[i].twin
+                if remaining[i] or (tw >= 0 and (remaining[tw] or ends[tw] is None and starts[tw] is None)):
+                    continue
+                static, dyn, sram_t, t_comp, t_coll, _ = costs[i]
+                st = starts[i]
+                fd = max(fetch_done[i], st) if (static + dyn) > 0 else st
+                if tw >= 0:
+                    fd = max(fd, fetch_done[tw])
+                fetch_done[i] = fd
+                ends[i] = max(st + t_comp + sram_t, fd + sram_t) + t_coll
+                open_ops.remove(i)
+                changed = True
+
+    pending = list(range(len(chunks)))
     t_h = 0.0
     busy = 0.0
-    i_res = 0
-    issued_static: dict[int, float] = {}  # op -> static bytes issued and not yet consumed
-
-    def start_of(i: int) -> float | None:
-        if i == 0:
-            return costs[0][5]
-        e = ends[i - 1]
-        return None if e is None else e + costs[i][5]
-
-    def resolve() -> None:
-        nonlocal i_res
-        while i_res < n_ops and remaining[i_res] == 0:
-            i = i_res
-            st = start_of(i)
-            static, dyn, sram_t, t_comp, t_coll, _ = costs[i]
-            starts[i] = st
-            fd = max(fetch_done[i], st) if (static + dyn) > 0 else st
-            ends[i] = max(st + t_comp, fd) + sram_t + t_coll
-            fetch_done[i] = fd
-            i_res += 1
-
-    def buffer_ready_time(nbytes: float, t0: float) -> float:
-        """Earliest t >= t0 at which `nbytes` more static bytes fit in the staging buffer."""
-        cap = hw.stage_bytes
-        held_unknown = 0.0
-        releases = []
-        for k, b in issued_static.items():
-            e = ends[k]
-            if e is None or e > t0:
-                if e is None:
-                    held_unknown += b
-                else:
-                    releases.append((e, b))
-        held = held_unknown + sum(b for _, b in releases)
-        if held + nbytes <= cap:
-            return t0
-        releases.sort()
-        for e, b in releases:
-            held -= b
-            if held + nbytes <= cap:
-                return e
-        return float("inf")
-
-    resolve()
+    propagate()
     while pending:
-        best_pos, best_t = None, float("inf")
+        best_pos, best_t = None, INF
         for pos in range(min(LOOKAHEAD, len(pending))):
-            ci = pending[pos]
-            i, dyn, b, first = chunks[ci]
+            i, dyn, b, first = chunks[pending[pos]]
             if not hw.prefetch or (dyn and ops[i].name != "routed_experts"):
-                st = start_of(i) if i == i_res else None
-                rt = float("inf") if st is None else st
-            elif dyn:  # routed experts: issued after the gate resolves
-                e = ends[src[i]]
-                rt = float("inf") if e is None else e + hw.router_latency
+                rt = INF if starts[i] is None else starts[i]
+            elif dyn:
+                e = ends[src[i]] if src[i] >= 0 else 0.0
+                rt = INF if e is None else e + hw.router_latency
+            elif hw.stage_bytes <= 0:  # no staging SRAM: weights arrive with their op
+                rt = INF if starts[i] is None else starts[i]
             elif pos == 0:
                 rt = 0.0
             else:
-                rt = buffer_ready_time(b, t_h)
+                rt = _buffer_ready(issued_static, ends, hw.stage_bytes, b, t_h)
             t = max(t_h, rt)
             if t < best_t:
                 best_pos, best_t = pos, t
                 if t <= t_h:
-                    break  # earliest-in-program-order chunk that is ready now
-            if not hw.prefetch and i > i_res:
-                break
-        assert best_pos is not None and best_t < float("inf"), "scheduler deadlock"
-        ci = pending.pop(best_pos)
-        i, dyn, b, first = chunks[ci]
+                    break
+        assert best_pos is not None and best_t < INF, "scheduler deadlock"
+        i, dyn, b, first = chunks[pending.pop(best_pos)]
         lat = hw.hbm_latency if (dyn and first and hw.prefetch) else 0.0
         dur = b / bw
         t_h = best_t + lat + dur
@@ -196,29 +201,73 @@ def simulate_step(ops: list[Op], hw: Hardware, hit_rate: float = 0.0) -> StepRes
         fetch_done[i] = max(fetch_done[i], t_h)
         remaining[i] -= 1
         if remaining[i] == 0:
-            resolve()
-            for k in [k for k in issued_static if ends[k] is not None and k < i_res]:
-                if ends[k] <= t_h:
-                    del issued_static[k]
-    resolve()
+            propagate()
+            for k in [k for k, _ in issued_static.items() if ends[k] is not None and ends[k] <= t_h]:
+                del issued_static[k]
+    propagate()
+    assert all(e is not None for e in ends), "unfinished ops"
 
-    step = ends[-1] + hw.step_overhead
-    timings = []
-    breakdown = {"overhead": hw.step_overhead, "collective": 0.0, "memory": 0.0, "compute": 0.0}
-    by_cat: dict[str, float] = {}
-    prev = 0.0
-    for i, o in enumerate(ops):
-        static, dyn, sram_t, t_comp, t_coll, ovh = costs[i]
-        tm = OpTiming(o, starts[i], ends[i], fetch_done[i], t_comp, t_coll, ovh, hbm_bytes_op[i])
-        timings.append(tm)
-        exposed = ends[i] - prev
-        body = exposed - ovh - t_coll
-        breakdown["overhead"] += ovh
-        breakdown["collective"] += t_coll
-        if fetch_done[i] - starts[i] > t_comp + sram_t:
-            breakdown["memory"] += max(0.0, body)
-        else:
-            breakdown["compute"] += max(0.0, body)
-        by_cat[o.category] = by_cat.get(o.category, 0.0) + exposed
-        prev = ends[i]
+    step = max(ends) + hw.step_overhead
+    timings = [OpTiming(o, starts[i], ends[i], fetch_done[i], costs[i][3], costs[i][4], costs[i][5], hbm_bytes_op[i])
+               for i, o in enumerate(ops)]
+    breakdown, by_cat = _critical_path(timings, costs, deps, hw.step_overhead)
     return StepResult(step, timings, busy / step if step else 0.0, sum(hbm_bytes_op), breakdown, by_cat)
+
+
+def _buffer_ready(issued: dict[int, float], ends, cap: float, nbytes: float, t0: float) -> float:
+    """Earliest t >= t0 at which `nbytes` more static bytes fit in the staging buffer."""
+    held = 0.0
+    releases = []
+    for k, b in issued.items():
+        e = ends[k]
+        if e is None:
+            held += b
+        elif e > t0:
+            held += b
+            releases.append((e, b))
+    if held + nbytes <= cap:
+        return t0
+    releases.sort()
+    for e, b in releases:
+        held -= b
+        if held + nbytes <= cap:
+            return e
+    return INF
+
+
+def _critical_path(timings: list[OpTiming], costs, deps, step_ovh: float):
+    """Walk back from the last op along whatever bounded each op's start (a dependency's end,
+    or the compute-issue front) and attribute every segment of the step to one cause."""
+    breakdown = {"overhead": step_ovh, "collective": 0.0, "memory": 0.0, "compute": 0.0}
+    by_cat: dict[str, float] = {}
+    i = max(range(len(timings)), key=lambda k: timings[k].end)
+    T = timings[i].end
+    while i is not None:
+        tm = timings[i]
+        _s, _d, sram_t, t_comp, t_coll, ovh = costs[i]
+        prev, prev_T = None, 0.0
+        for d in deps[i]:
+            if timings[d].end >= prev_T:
+                prev, prev_T = d, timings[d].end
+        if i > 0 and tm.op.kind != "collective":
+            j = i - 1
+            while j >= 0 and timings[j].op.kind == "collective":
+                j -= 1
+            if j >= 0:
+                issue = timings[j].start + costs[j][3] + costs[j][2]
+                if issue > prev_T + 1e-15:
+                    prev, prev_T = j, issue
+        seg = max(0.0, T - prev_T)
+        o = min(ovh, seg)
+        c = min(t_coll, seg - o)
+        rest = seg - o - c
+        comp_end = tm.start + t_comp + sram_t
+        mem = min(rest, max(0.0, min(T, tm.fetch_done) - comp_end)) if tm.fetch_done > comp_end else 0.0
+        breakdown["overhead"] += o
+        breakdown["collective"] += c
+        breakdown["memory"] += mem
+        breakdown["compute"] += rest - mem
+        by_cat[tm.op.category] = by_cat.get(tm.op.category, 0.0) + seg
+        T = prev_T
+        i = prev
+    return breakdown, by_cat
