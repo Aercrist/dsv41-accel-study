@@ -7,17 +7,20 @@ All numbers are modeled projections from the repo, except Baseten's published 1,
 
 ## X thread
 
-**1/**
-DeepSeek-V4.1-Flash decode has ~2x headroom, and purpose-built silicon can deliver it at ~3x lower cost per token.
+Free X accounts allow 280 characters per post, with every link counted as 23. Each post below fits;
+`tools/check_post_length.py` verifies it. Attach the listed image to each post.
 
-At Aercrist we modeled Baseten's deepseek-ultrafast (1,740 tok/s/user on 4x GB300) from its source code and the model's checkpoint to find out where the time goes. 🧵
+**1/**
+DeepSeek-V4.1-Flash decode has ~2x headroom, and purpose-built silicon could deliver it at ~3x lower cost per token.
+
+We modeled Baseten's deepseek-ultrafast (1,740 tok/s on 4x GB300) to find where the time goes. 🧵
 
 📎 `results/fig_step_breakdown.png`
 
 ![Where a decode step goes](results/fig_step_breakdown.png)
 
 **2/**
-About half of each 3.3 ms decode step is spent waiting between dependent steps (~43 µs per transformer block), not moving weights.
+About half of each 3.3 ms decode step is waiting between dependent steps, not moving weights.
 
 That's why 8 GPUs are only 22% faster per step than 4: more GPUs speed up the streaming, not the waiting.
 
@@ -26,7 +29,7 @@ That's why 8 GPUs are only 22% faster per step than 4: more GPUs speed up the st
 ![Strong scaling](results/fig_strong_scaling.png)
 
 **3/**
-Win #1 needs no new hardware. Run the model as one persistent program with flag hand-offs, and stream the next layers' weights while this layer's experts load.
+Win #1 needs no new hardware: one persistent program, plus streaming the next layers' weights while experts load.
 
 Same 4x GB300, modeled: 3,596 tok/s/user, 2.1x today.
 
@@ -35,47 +38,46 @@ Same 4x GB300, modeled: 3,596 tok/s/user, 2.1x today.
 ![Ablation](results/fig_ablation.png)
 
 **4/**
-Win #2 is silicon built for exactly this. Our MDA-1 design is a decode ASIC with the same 8 TB/s HBM, 2 PF FP8, a hardware MoE router (RTL-verified) and in-fabric all-reduce.
+Win #2 is silicon built for exactly this. Our MDA-1 decode ASIC design has the same 8 TB/s HBM, a hardware MoE router and in-fabric all-reduce.
 
-It reaches 3,656 tok/s/user, 94% of its memory roofline, and 1.6x-2.3x today's speed across a joint uncertainty analysis.
+Modeled: 3,656 tok/s/user, 1.6x-2.3x today's speed under joint uncertainty.
 
 📎 `results/fig_monte_carlo.png`
 
 ![Monte Carlo](results/fig_monte_carlo.png)
 
 **5/**
-It's also far cheaper to run: ~3.2x lower $/token and ~3.9x more tokens per joule than today's engine.
+It's also cheaper to run: ~3.2x lower $/token and ~3.9x more tokens/J than today's engine.
 
-Even against GPUs running the improved software, MDA-1 stays ~1.5x cheaper and ~1.8x more efficient. The GPU price and power assumptions, with ranges, are in the repo.
+Against GPUs running the improved software, it's still ~1.5x cheaper and ~1.8x more efficient.
 
 📎 `results/fig_batch_frontier.png`
 
 ![Cost vs interactivity](results/fig_batch_frontier.png)
 
 **6/**
-The gains compound. Once the waiting is gone, more memory bandwidth finally pays: Rubin running that execution model, or MDA-1 with HBM4, projects ~6,100 tok/s/user, 3.5x today.
+The gains compound. Once the waiting is gone, bandwidth pays: Rubin with this execution model, or MDA-1 with HBM4, projects ~6,100 tok/s/user, 3.5x today.
 
 📎 `results/fig_hbm_sweep.png`
 
 ![HBM sweep](results/fig_hbm_sweep.png)
 
 **7/**
-What we learned along the way:
-• A classic 128x128 systolic array runs these decode GEMVs at 0.3-1.5% utilization (SCALE-Sim). The right engine is 16 rows wide.
-• Engram's 203 GB of tables need only ~23 MB/s, so they belong in cheap LPDDR, not HBM.
-• Our model reproduces DeepSeek's published 552B params and 890 B/token KV straight from the checkpoint.
-• It held up through two rounds of adversarial review.
+What we learned:
+• A 128x128 systolic array runs these decode GEMVs at 0.3-1.5% utilization
+• Engram's 203 GB of tables need only ~23 MB/s: use LPDDR, not HBM
+• The study survived two adversarial reviews
 
 📎 `results/fig_roofline.png`
 
 ![Roofline](results/fig_roofline.png)
 
 **8/**
-Everything is open and reproducible: the simulator, calibration against Baseten's numbers, the Monte Carlo, the ablation and the router RTL. `make reproduce`.
+All open and reproducible: simulator, calibration, Monte Carlo, router RTL. `make reproduce`
 
-Thanks to @basetenco for open-sourcing deepseek-ultrafast and to @deepseek_ai for V4.1.
+Thanks @basetenco for open-sourcing deepseek-ultrafast.
 
-→ https://github.com/Aercrist/dsv41-accel-study
+https://github.com/Aercrist/dsv41-accel-study
 
 ## LinkedIn
 
