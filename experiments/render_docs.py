@@ -1,4 +1,4 @@
-"""Render README.md, POST.md and docs/*.md from docs/templates/*.j2 and results/*.json, so every
+"""Render README.md and docs/*.md from docs/templates/*.j2 and results/*.json, so every
 number in the prose is the number the simulator produced in this run."""
 from __future__ import annotations
 
@@ -13,7 +13,6 @@ from sim.hardware import load_yaml
 TEMPLATES = ROOT / "docs/templates"
 OUTPUTS = {
     "README.md.j2": ROOT / "README.md",
-    "POST.md.j2": ROOT / "POST.md",
     "01_workload.md.j2": ROOT / "docs/01_workload.md",
     "02_design_rationale.md.j2": ROOT / "docs/02_design_rationale.md",
     "03_architecture.md.j2": ROOT / "docs/03_architecture.md",
