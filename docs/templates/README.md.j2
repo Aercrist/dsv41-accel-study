@@ -75,7 +75,7 @@ make rtl                            # router RTL vs golden model (needs iverilog
 python3 -m tools.model_vs_nsys      # our per-kernel-group prediction, to compare with one nsys profile
 ```
 
-Every number in this README, `docs/` and `POST.md` is rendered from `results/*.json` by
+Every number in this README and `docs/` is rendered from `results/*.json` by
 `experiments/render_docs.py`. Edit `docs/templates/`, not the generated files.
 
 ## Limitations (short version)
@@ -98,7 +98,7 @@ results/     generated JSON + figures
 rtl/         MoE top-k router + testbench
 docs/        01 workload · 02 rationale · 03 architecture · 04 results · 05 limitations · 06 simulator · sources
 tools/       fetch_checkpoint_manifest.py (network), model_vs_nsys.py (profile comparison)
-POST.md      draft thread and note to the Baseten team
+LICENSE      MIT
 ```
 
 ## Acknowledgments
@@ -106,3 +106,15 @@ POST.md      draft thread and note to the Baseten team
 Built on the public work of Baseten ([deepseek-ultrafast](https://github.com/basetenlabs/deepseek-ultrafast))
 and DeepSeek-AI ([DeepSeek-V4.1-Flash](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash) and its technical report).
 This study is independent and not affiliated with or endorsed by either.
+
+## License
+
+MIT; see [LICENSE](LICENSE). `data/` includes DeepSeek-V4.1-Flash configuration files (MIT, DeepSeek-AI)
+and a manifest derived from its checkpoint headers. No code from deepseek-ultrafast is included;
+its measurements are quoted with attribution.
+
+## About Aercrist
+
+This study is by [Aercrist](https://github.com/Aercrist). We work on hardware architecture for
+AI inference. Questions, corrections or a GPU profile to compare against: please open an issue on
+this repository.
