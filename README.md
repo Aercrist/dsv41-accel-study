@@ -1,41 +1,46 @@
 <!-- generated from docs/templates/README.md.j2 by experiments/render_docs.py; edit the template -->
 # Decode silicon for DeepSeek-V4.1-Flash
 
-**A modeled hardware-architecture study of [deepseek-ultrafast](https://github.com/basetenlabs/deepseek-ultrafast):
-where the time goes, what a custom accelerator would buy, and how much of that software can buy first.**
-All MDA-1 and projected-GPU numbers are **simulated/projected**. Numbers marked *measured* are quoted from the deepseek-ultrafast README.
+**A modeled hardware-architecture study of [deepseek-ultrafast](https://github.com/basetenlabs/deepseek-ultrafast).
+It shows where the time goes, what a custom accelerator gives, and how much of that gain software can give first.**
+All MDA-1 and projected-GPU numbers are **simulated/projected**. We quote the numbers marked *measured* from the deepseek-ultrafast README.
 
-> **Status:** performance-model study plus one verified RTL block. No silicon, no synthesis, no GPU profiling.
-> The claims were revised after an adversarial review ([what changed](docs/05_limitations.md#revisions-after-adversarial-review)).
+> **Status:** This is a performance-model study with one verified RTL block. There is no silicon, no synthesis and no GPU profile.
+> We revised the claims after an adversarial review ([what changed](docs/05_limitations.md#revisions-after-adversarial-review)).
 
 ## Abstract
 
-deepseek-ultrafast serves DeepSeek-V4.1-Flash, a 552B-parameter MoE with FP4 experts, one request at
-a time: 1,740 tok/s on 4 x GB300 and 2,060 tok/s on 8 x B300 (*measured*).
-We rebuilt the workload from the engine's Rust/CUDA source and the model's checkpoint headers. We
-then built an op-level performance simulator and calibrated it to the two reported step times.
+deepseek-ultrafast serves DeepSeek-V4.1-Flash one request at a time. DeepSeek-V4.1-Flash is a
+552B-parameter MoE with FP4 experts. The engine gets 1,740 tok/s on 4 x GB300 and 2,060 tok/s on 8 x B300 (*measured*).
+We rebuilt the workload from the Rust/CUDA source of the engine and the checkpoint headers of the model. Then
+we built an op-level performance simulator and calibrated it to the two reported step times.
 
-1. **About half of every decode step is fixed latency, not weight streaming.** The calibrated model
+1. **About half of each decode step is fixed latency, not weight streaming.** The calibrated model
    attributes 1.85 ms of the 3.30 ms step (56%) to dependent-stage
-   and collective latency (43%-62% across every alternative calibration).
-   HBM averages 37% of peak.
-2. **The fix is an execution model, not FLOPs.** It replaces dependent kernel launches with one
-   persistent, statically ordered program that hands off between stages with flags. It streams the next
-   layers' dense weights while the current layer's experts are in flight. On the **same 4 x GB300**
-   this projects **3,596 tok/s/user (2.1x the measured engine)**. The
-   levers are the persistent program (+61% if a stage hand-off can be cut to ~1 µs, the least
-   certain step), flags (+7%) and cross-layer weight prefetch (+23%).
-3. **Custom silicon built around that execution model matches it. It doesn't beat it.** MDA-1 is a
-   decode ASIC: 2 dies, 8 x HBM3E at GB300's 8 TB/s, 2 PF FP8, a hardware MoE router (RTL-verified)
-   and in-fabric all-reduce. It projects **3,656 tok/s/user**, 94% of its HBM roofline. Drawing all its
-   assumptions jointly, that is 1.6x-2.3x the measured engine (5th-95th percentile), and
-   0.92x-1.19x the same-bandwidth GPU software (median 1.01x). **Its case is economic:**
-   1.5x lower $/M tokens and 1.8x tokens/J against GPUs running the same software
-   (GPUs owned at $45K, drawing 60% of TDP). Across $25-65K per GPU and 40-100% of TDP those ratios span
+   latency and collective latency. The range is 43%-62% across all alternative calibrations.
+   The average HBM rate is 37% of peak.
+2. **The fix is an execution model, not FLOPs.** The execution model replaces dependent kernel launches with one
+   persistent program in a static order. Each stage hands off to the next stage with flags. The program streams the
+   dense weights of the next layers while the experts of the current layer are in transit. On the **same 4 x GB300**
+   the model projects **3,596 tok/s/user (2.1x the measured engine)**. The
+   gain has three parts:
+   - The persistent program gives +61% if a stage hand-off can decrease to ~1 µs. This is the least certain step.
+   - Flags give +7%.
+   - Cross-layer weight prefetch gives +23%.
+3. **Custom silicon that uses that execution model gets the same speed. It is not faster.** MDA-1 is a
+   decode ASIC. It has 2 dies, 8 x HBM3E at the 8 TB/s of GB300, 2 PF FP8, a hardware MoE router (RTL-verified)
+   and in-fabric all-reduce. The model projects **3,656 tok/s/user**, 94% of the HBM roofline of MDA-1.
+
+   We draw all assumptions of MDA-1 jointly. Then the result is 1.6x-2.3x the measured engine (5th-95th percentile). It is
+   0.92x-1.19x the same-bandwidth GPU software (median 1.01x).
+
+   **The case for MDA-1 is economic.** MDA-1 gets
+   1.5x lower $/M tokens and 1.8x tokens/J against GPUs that run the same software.
+   These GPUs are owned at $45K and draw 60% of TDP. Across $25-65K per GPU and 40-100% of TDP, those ratios are
    0.9x-2.1x and 1.2x-3.0x. Break-even is about 9,000 chips at $300M NRE.
-4. **Bandwidth alone won't fix it.** Rubin (19.2 TB/s, 2.4x GB300) with today's per-stage
-   latency projects only +35% over GB300. With dataflow-style software on both,
-   Rubin's bandwidth buys 1.71x (6,149 vs 3,596 tok/s/user).
+4. **Bandwidth alone does not fix it.** Rubin has 19.2 TB/s (2.4x GB300). With the per-stage
+   latency of today, the model projects only +35% for Rubin over GB300. With dataflow-style software on both,
+   the bandwidth of Rubin gives 1.71x (6,149 vs 3,596 tok/s/user).
 
 ![Where a decode step goes](results/fig_step_breakdown.png)
 
@@ -53,18 +58,25 @@ then built an op-level performance simulator and calibrated it to the two report
 | 4 x Rubin, today's software / dataflow software (projected) | 2,284 / 6,149 | 0.53 / 1.42 | |
 | 4 x MDA-1 with HBM4 at Rubin's bandwidth (projected) | 6,159 | 2.67 | 0.19 |
 
-† GPU power is an *assumption* (60% of TDP); MDA-1 power is bottom-up. ‡ GPUs at an *assumed* $45K all-in
-(no public B300 price); MDA-1 at manufacturing cost plus $300M NRE over 20K chips; 4-year life. A GPU
-prefill pool adds $0.027/M to every row equally. At the $9.50/GPU-hr market rental the GPU baseline is
+† GPU power is an *assumption* (60% of TDP). MDA-1 power is bottom-up. ‡ GPUs are at an *assumed* $45K all-in,
+because there is no public B300 price. MDA-1 is at manufacturing cost plus $300M NRE over 20K chips. The life is 4 years.
+
+A GPU prefill pool adds $0.027/M to each row equally. At the market rental of $9.50/GPU-hr, the GPU baseline is
 $6.22/M.
 
 ## Method
 
-1. **Workload from code** ([docs/01](docs/01_workload.md)). Engine kernels, TP layout, padded expert layout, fusions and DSpark speculation are read from the Rust/CUDA source. Shapes and bytes come from the 48 safetensors headers, which reproduce the tech report's 552B / 196B / 16B / 8B parameters and 890 B/token KV.
-2. **Simulator** ([docs/06](docs/06_simulator.md)). An op-level, event-driven scheduler over compute, chunked prioritized HBM and links, with two policies: GPU kernels, and a statically scheduled dataflow with a prefetch window. Platforms differ only in constants. Same-physics constants are set equal across platforms: HBM efficiency, DRAM first-byte latency, and the best measured 4-GPU all-reduce.
-3. **Calibration.** 2 free GPU parameters fitted to 2 measured step times, refit under 10 alternative assumptions, including the README's run-to-run extremes. Leave-one-out: +2.3% / -1.9% with an independent STREAM bandwidth prior. That is a weak test, and we say so. An adversarial reviewer checked the study twice ([what changed](docs/05_limitations.md#revisions-after-adversarial-review)).
-4. **Design and trade study** ([02](docs/02_design_rationale.md), [03](docs/03_architecture.md)). GPU software, FPGA, SRAM-only, wafer-scale and ASIC options run on one simulator. The MoE router is SystemVerilog, verified against a golden model (256/256, 98 cycles). The matrix engine is cross-checked with SCALE-Sim v3, which corrected our model by 1.6x.
-5. **Experiments** ([04](docs/04_results.md)). Baseline vs proposed vs software; joint Monte Carlo; sweeps over chips, batch, context, HBM bandwidth and SRAM; an expert-cache study (LRU/LFU/Belady); a tornado; and an ablation that separates software steps from silicon.
+1. **Workload from code** ([docs/01](docs/01_workload.md)). We read the engine kernels, TP layout, padded expert layout, fusions and DSpark speculation from the Rust/CUDA source. Shapes and bytes come from the 48 safetensors headers. These headers reproduce the 552B / 196B / 16B / 8B parameters and the 890 B/token KV of the tech report.
+2. **Simulator** ([docs/06](docs/06_simulator.md)). The simulator is an op-level, event-driven scheduler for compute, chunked prioritized HBM and links. Its two policies are GPU kernels and a statically scheduled dataflow with a prefetch window. Platforms differ only in constants. We set same-physics constants equal across platforms: HBM efficiency, DRAM first-byte latency, and the best measured 4-GPU all-reduce.
+3. **Calibration.** We fitted 2 free GPU parameters to 2 measured step times. We refitted them under 10 alternative assumptions, which include the run-to-run extremes of the README. The leave-one-out errors are +2.3% / -1.9% with an independent STREAM bandwidth prior. That is a weak test. An adversarial reviewer checked the study two times ([what changed](docs/05_limitations.md#revisions-after-adversarial-review)).
+4. **Design and trade study** ([02](docs/02_design_rationale.md), [03](docs/03_architecture.md)). The GPU software, FPGA, SRAM-only, wafer-scale and ASIC options run on one simulator. The MoE router is SystemVerilog. We verified it against a golden model (256/256, 98 cycles). We cross-checked the matrix engine with SCALE-Sim v3. That check corrected our model by 1.6x.
+5. **Experiments** ([04](docs/04_results.md)). The experiments are:
+   - baseline vs proposed vs software
+   - joint Monte Carlo
+   - sweeps over chips, batch, context, HBM bandwidth and SRAM
+   - an expert-cache study (LRU/LFU/Belady)
+   - a tornado
+   - an ablation that separates software steps from silicon
 
 ## Reproduce
 
@@ -76,16 +88,18 @@ make rtl                            # router RTL vs golden model (needs iverilog
 python3 -m tools.model_vs_nsys      # our per-kernel-group prediction, to compare with one nsys profile
 ```
 
-Every number in this README and `docs/` is rendered from `results/*.json` by
-`experiments/render_docs.py`. Edit `docs/templates/`, not the generated files.
+`experiments/render_docs.py` renders each number in this README and `docs/` from `results/*.json`.
+Edit `docs/templates/`. Do not edit the generated files.
 
 ## Limitations (short version)
 
-This is a modeled projection, not silicon. The GPU model is calibrated on two points from one engine
-and one prompt. The fixed-latency share is a range, not a measurement. One `nsys` profile would
-confirm or refute it. MDA-1's constants are bottom-up assumptions, sourced where possible and swept
+This is a modeled projection, not silicon. We calibrated the GPU model on two points from one engine
+and one prompt. The fixed-latency share is a range, not a measurement. One `nsys` profile can
+confirm or refute it.
+
+The constants of MDA-1 are bottom-up assumptions. We give sources where possible, and we sweep the constants
 jointly. Prefill is **not** calibrated: the measured prefill is 5.4x slower than our model.
-GPU power and purchase price, MAC and SerDes area, NRE and volume are assumptions. Full list:
+GPU power, the price of an owned GPU, MAC and SerDes area, NRE and volume are assumptions. Full list:
 [docs/05_limitations.md](docs/05_limitations.md).
 
 ## Layout
@@ -104,18 +118,18 @@ LICENSE      MIT
 
 ## Acknowledgments
 
-Built on the public work of Baseten ([deepseek-ultrafast](https://github.com/basetenlabs/deepseek-ultrafast))
+This study uses the public work of Baseten ([deepseek-ultrafast](https://github.com/basetenlabs/deepseek-ultrafast))
 and DeepSeek-AI ([DeepSeek-V4.1-Flash](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash) and its technical report).
-This study is independent and not affiliated with or endorsed by either.
+This study is independent. It is not affiliated with or endorsed by Baseten or DeepSeek-AI.
 
 ## License
 
-MIT; see [LICENSE](LICENSE). `data/` includes DeepSeek-V4.1-Flash configuration files (MIT, DeepSeek-AI)
-and a manifest derived from its checkpoint headers. No code from deepseek-ultrafast is included;
-its measurements are quoted with attribution.
+MIT. See [LICENSE](LICENSE). `data/` includes DeepSeek-V4.1-Flash configuration files (MIT, DeepSeek-AI)
+and a manifest derived from the checkpoint headers of the model. This repository includes no code from deepseek-ultrafast.
+We quote its measurements with attribution.
 
 ## About Aercrist
 
 This study is by [Aercrist](https://github.com/Aercrist). We work on hardware architecture for
-AI inference. Questions, corrections or a GPU profile to compare against: please open an issue on
+AI inference. If you have questions, corrections or a GPU profile for comparison, open an issue on
 this repository.
