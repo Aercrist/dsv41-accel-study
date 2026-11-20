@@ -1,10 +1,10 @@
 <!-- generated from docs/templates/06_simulator.md.j2 by experiments/render_docs.py; edit the template -->
 # 06 · The simulator
 
-`sim/` is an analytical plus op-level, cycle-approximate performance model. It is parameterized by
-YAML (`configs/hw/*.yaml`) and driven by the model's own config and checkpoint manifest. One decode
-step of DeepSeek-V4.1-Flash is about 554 ops at batch 1; a simulation takes a few ms, so the
-experiment suite runs thousands of them in about 20 s.
+`sim/` is an analytical plus op-level, cycle-approximate performance model. YAML files
+(`configs/hw/*.yaml`) give its parameters. The model's own config and checkpoint manifest give its
+inputs. One decode step of DeepSeek-V4.1-Flash is about 554 ops at batch 1. A simulation takes
+a few ms, thus the experiment suite runs thousands of simulations in about 20 s.
 
 ```
 data/                         raw inputs: HF config, checkpoint manifest (safetensors headers), reported numbers
@@ -22,40 +22,41 @@ rtl/                          MoE top-k router, SystemVerilog + Icarus testbench
 
 ## Workload model
 
-`decode_step()` emits one `Op` per projection, attention, indexer, top-k, router, expert block,
-mHC mix, collective and head. Each carries:
+`decode_step()` emits one `Op` for each projection, attention, indexer, top-k, router, expert block,
+mHC mix, collective and head. Each `Op` has:
 
-* weight bytes split three ways: sharded across chips (`w_tp`), replicated on every chip
+- weight bytes in three groups: sharded across chips (`w_tp`), replicated on every chip
   (`w_rep`), and data-dependent routed experts (`w_dyn`). Bytes come from the checkpoint's on-disk
-  format, including scale tensors;
-* cache bytes (SWA ring, top-k latent KV, index K scan);
-* FLOPs by precision (FP4xFP8, FP8, BF16, FP32), split into sharded and replicated;
-* all-reduce and all-gather payloads;
-* the number of GPU kernels the op maps to in deepseek-ultrafast (approximate, from `model.rs`).
+  format, and they include scale tensors;
+- cache bytes (SWA ring, top-k latent KV, index K scan);
+- FLOPs by precision (FP4xFP8, FP8, BF16, FP32), in a sharded group and a replicated group;
+- all-reduce and all-gather payloads;
+- the number of GPU kernels that the op maps to in deepseek-ultrafast (approximate, from `model.rs`).
 
 Routed-expert bytes use the expected number of distinct experts among the step's rows (`routing.py`).
-With batch ≥ 2 the step is split into two micro-batches whose ops interleave. They share weight
-fetches, and the second micro-batch fetches only the experts the first did not.
+With batch ≥ 2, the model divides the step into two micro-batches, and their ops interleave. The
+micro-batches share weight fetches. The second micro-batch fetches only the experts that the first
+micro-batch did not fetch.
 
 ## Execution model (`engine.py`)
 
-One chip of the TP group is simulated; the others are symmetric.
+The engine simulates one chip of the TP group. The other chips are symmetric.
 
-* **Compute** issues ops in program order and is occupied for each op's compute time
+- **Compute** issues ops in program order. It is busy for the compute time of each op
   (FLOPs / (peak x efficiency x M-utilization)).
-* **An op ends** when its compute is done and all its bytes have arrived, plus collective time.
+- **An op ends** when its compute is complete and all its bytes are available, plus collective time.
   Collective time = latency + 2·S·(n−1)/n / link bandwidth.
-* **HBM** serves 4 MB chunks at `hbm_bw x hbm_eff`. When it frees, it picks the earliest-in-program-order
-  chunk that is *ready*. When a chunk becomes ready depends on the execution policy:
+- **HBM** serves 4 MB chunks at `hbm_bw x hbm_eff`. When HBM becomes free, it selects the *ready*
+  chunk that is earliest in program order. The execution policy sets the time at which a chunk becomes ready:
 
 | policy | static weights ready | routed experts ready | overhead per op |
 |---|---|---|---|
 | GPU kernels (`prefetch: false`) | when the op starts | when the op starts | `kernel_overhead` x kernels |
 | dataflow (`prefetch: true`) | as soon as the staging buffer (`stage_bytes`) has room | `router_latency` after the gate op ends (+ first-byte latency) | `op_overhead` (pipeline fill/drain) |
 
-* **Critical path.** Walking back from the last op along the binding dependency (data, or the
-  compute-issue front) attributes every microsecond of the step to overhead, collective, memory or
-  compute. That attribution is what `fig_step_breakdown` shows.
+- **Critical path.** The engine goes back from the last op along the dependency that binds (data, or
+  the compute-issue front). This attributes every microsecond of the step to overhead, collective,
+  memory or compute. `fig_step_breakdown` shows that attribution.
 
 At batch 1 the graph is a chain, and the model reduces to
 `end_i = max(end_{i-1} + overhead_i + compute_i, fetch_done_i) + collective_i`.
@@ -64,25 +65,28 @@ At batch 1 the graph is a chain, and the model reduces to
 
 ## Calibration
 
-Fitted on the two measured step times: η (HBM efficiency) = 0.838 and
+We fitted two parameters on the two measured step times. They are η (HBM efficiency) = 0.838 and
 κ (exposed latency per dependent kernel stage) = 4.21 µs. Every
-other GPU constant is a published spec or a sourced prior. The as-built engine is modeled with its
+other GPU constant is a published spec or a sourced prior. The model of the as-built engine includes its
 padded expert layout, fused producer-pushed all-reduces, side streams, and replicated decode indexer.
-Leave-one-out with η pinned to STREAM: +2.3% (TP8 from TP4) and
--1.9% (the reverse). This is a weak test; see [04](04_results.md#calibration)
-for what the data do and do not pin.
+
+Leave-one-out with η set to the STREAM value gives +2.3% (TP8 from TP4) and
+-1.9% (the reverse). This is a weak test. See [04](04_results.md#calibration)
+for what the data determine and what they do not determine.
 
 ## Symmetric constants
 
-Platforms differ only in YAML constants, so a comparison is only as fair as its constants. Where the
-physics is the same, the constant is the same on every platform: HBM efficiency (calibrated),
-DRAM first-byte latency (0.5 µs) and collective latency (2.37 µs, the best measured 4-GPU
-all-reduce; MDA-1 adds 0.2 µs for its die crossing). Where a mechanism differs, the constant
-differs and the mechanism is written next to it in the YAML:
-* per-stage hand-off: GPU today κ (fitted); GPU barrier 1 µs; GPU flags 0.5 µs; MDA-1 on-chip 0.3 µs including die crossing;
-* router: GPU 0.5 µs; MDA-1 0.1 µs (RTL).
+Platforms differ only in YAML constants, thus a comparison is only as fair as its constants. Where the
+physics is the same, the constant is the same on every platform:
+- HBM efficiency (calibrated);
+- DRAM first-byte latency (0.5 µs);
+- collective latency (2.37 µs, the best measured 4-GPU all-reduce; MDA-1 adds 0.2 µs for its die crossing).
 
-Joint uncertainty over all of them is in `monte_carlo()` (`experiments/decode_experiments.py`).
+Where a mechanism differs, the constant differs, and the YAML gives the mechanism adjacent to the constant:
+- per-stage hand-off: GPU today κ (fitted); GPU barrier 1 µs; GPU flags 0.5 µs; MDA-1 on-chip 0.3 µs, with die crossing;
+- router: GPU 0.5 µs; MDA-1 0.1 µs (RTL).
+
+The joint uncertainty over all of these constants is in `monte_carlo()` (`experiments/decode_experiments.py`).
 
 ## Cross-checks
 
@@ -97,14 +101,14 @@ Joint uncertainty over all of them is in `monte_carlo()` (`experiments/decode_ex
 
 ## Tools we did not use
 
-Timeloop/Accelergy, LLMCompass and ASTRA-sim target dense layer mapping, GPU-style kernels or
+Timeloop/Accelergy, LLMCompass and ASTRA-sim are for dense layer mapping, GPU-style kernels or
 large-scale training collectives. None of them models the data-dependent expert fetch behind a gate
-or a static prefetch window, which is what decides this design. We used SCALE-Sim where a mature
-tool answers a narrow question (matrix-engine utilization). Porting the op graph to ASTRA-sim's
-execution-trace format is a natural next step for multi-node studies.
+or a static prefetch window. These two mechanisms decide this design. We used SCALE-Sim where a mature
+tool answers a narrow question (matrix-engine utilization). A port of the op graph to the
+execution-trace format of ASTRA-sim is a logical next step for multi-node studies.
 
-## Extending
+## How to extend the simulator
 
-* New hardware: copy a YAML in `configs/hw/` (`extends:` works) and add it to `experiments/platforms.py`.
-* New model: point `ModelSpec.load()` at another config and manifest. `workload.py` encodes
-  V4.1's structure (CSA2 modes, CED, DSpark), so a different architecture needs its own builder.
+- New hardware: copy a YAML in `configs/hw/` (`extends:` works). Then add it to `experiments/platforms.py`.
+- New model: give `ModelSpec.load()` a different config and manifest. `workload.py` encodes
+  V4.1's structure (CSA2 modes, CED, DSpark), thus a different architecture needs its own builder.

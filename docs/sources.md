@@ -1,11 +1,15 @@
 # Sources
 
-Every constant in `configs/` carries a `# src: <key>` comment that resolves to a row here.
-Pages were read on 2026-11-14 unless noted. Confidence: **V** vendor datasheet/page,
-**P** peer-reviewed paper or preprint, **R** reputable press/independent analysis,
-**E** analyst estimate/aggregator. Values that are not in any source are labelled
-**assumption** in the YAML and listed in [docs/05_limitations.md](05_limitations.md), and the
-uncertain ones are swept in the tornado analysis.
+Each constant in `configs/` has a `# src: <key>` comment. The key refers to a row on this page.
+We read the pages on 2026-11-14, unless a row gives a different date. Confidence:
+- **V** vendor datasheet/page;
+- **P** peer-reviewed paper or preprint;
+- **R** reputable press/independent analysis;
+- **E** analyst estimate/aggregator.
+
+The YAML gives the label **assumption** to each value that is not in a source.
+[docs/05_limitations.md](05_limitations.md) lists these values. The tornado analysis sweeps the
+uncertain values.
 
 ## Workload (primary sources)
 
@@ -22,7 +26,7 @@ uncertain ones are swept in the tornado analysis.
 | nv-bw-ultra | GB300: 288 GB HBM3E, 8 TB/s, 15 PF dense NVFP4, 5 PF dense FP8, NVLink 1.8 TB/s, up to 1,400 W, TSMC 4NP | developer.nvidia.com/blog/inside-nvidia-blackwell-ultra-the-chip-powering-the-ai-factory-era/ | "Bandwidth: 8 TB/s per GPU"; "15 PetaFLOPS dense NVFP4"; FP8 "5 \| 10 PetaFLOPS"; "Up to 1,400W" | V |
 | lenovo-b300 | HGX B300 per GPU: 7.7 TB/s, FP8 9,000 TF sparse (4.5 PF dense), BF16 4,500 sparse, TDP 1,100 W | lenovopress.lenovo.com/lp2264-thinksystem-sr680a-v4-server | "GPU Memory Bandwidth \| 7.7 TB/s"; "FP8 Tensor Core \| 9,000 teraFLOPS*"; "TDP \| 1100W" | V (OEM) |
 | nv-hgx | HGX B300 FP4: 144 \| 108 PFLOPS per 8 GPUs (sparse \| dense) | nvidia.com/en-us/data-center/hgx/ | "144 PFLOPS \| 108 PFLOPS" | V |
-| stream-b200 | B200 STREAM triad 7.48 TB/s = 93.5% of peak (128 GB array). v3 of the same preprint reports ~52% at 4-16 GB arrays | arxiv.org/html/2512.02189v1 (and v3) | Table XIII "7.48" / "93.5" | P (preprint) |
+| stream-b200 | B200 STREAM triad 7.48 TB/s = 93.5% of peak (128 GB array). Version 3 of the same preprint reports ~52% at 4-16 GB arrays | arxiv.org/html/2512.02189v1 (and v3) | Table XIII "7.48" / "93.5" | P (preprint) |
 | stream-h100 | DGX H100 STREAM triad 3,132 of 3,352 GB/s (93.4%) | NVIDIA GH200 benchmark guide DA-11356-002_10 | "Triad 3132" | V |
 | ar-latency | 4x GB200 small-message all-reduce: NCCL ring 11.0 us; new kernel 2.37 us (measured); "roughly 5 us on four GPUs"; barrier ">1 us"; speed-of-light 1.404 us *computed* for 2x GB200 from measured L2 RTT 0.306 us and remote store 0.792 us | arxiv.org/pdf/2607.16100 | "reduces average latency for small messages from 11.0 µs for NCCL ring to 2.37 µs"; "a small-message AllReduce completes in roughly 5 µs on four GPUs"; "each barrier will incur more than 1 µs of overhead"; "the SoL latency of an AllReduce is computed to be 1.404 µs" | P (preprint) |
 | launch-overhead | CUDA kernel launch ~2.1 us (stream), ~1.3 us (CUDA graph) on H100; batch-1 megakernel uses 78% of HBM BW | hazyresearch.stanford.edu/blog/2025-05-27-no-bubbles | "launch cost of about 2.1 microseconds"; "with CUDA graphs ... around 1.3 microseconds"; "we use 78% of memory bandwidth" | R |
@@ -80,7 +84,16 @@ uncertain ones are swept in the tornado analysis.
 
 ## Not found (treated as assumptions, see 05_limitations.md)
 
-Absolute HBM3/3E/4 pJ/bit; FP8 MAC energy and area at 5 nm; full-swing wire energy at 5-7 nm;
-NVLink one-shot all-reduce latency on H100; N4P bitcell; N3 MTr/mm2; 3 nm design cost; verified
-HBM3E PHY area; N4P/N3 defect density; Blackwell L2 size; GB300 public rental price; GPU
-purchase price; DeepSeek-V3/V4 expert-cache hit rates.
+- Absolute HBM3/3E/4 pJ/bit
+- FP8 MAC energy and area at 5 nm
+- full-swing wire energy at 5-7 nm
+- NVLink one-shot all-reduce latency on H100
+- N4P bitcell
+- N3 MTr/mm2
+- 3 nm design cost
+- verified HBM3E PHY area
+- N4P/N3 defect density
+- Blackwell L2 size
+- GB300 public rental price
+- price to buy a GPU
+- DeepSeek-V3/V4 expert-cache hit rates
