@@ -1,16 +1,17 @@
 {% set cal = D.calibration %}{% set CM = D.comparison %}
 # 04 · Results
 
-**Everything on this page is simulated or projected**, except numbers marked *measured*, which are
-quoted from the deepseek-ultrafast README. Regenerate with `make reproduce`. Defaults: batch 1,
-context 2.6K, acceptance 5.6 tokens/step, 4 chips at 8 TB/s HBM each.
+**All numbers on this page are simulated or projected.** The exception is the numbers marked
+*measured*, which we quote from the deepseek-ultrafast README. To regenerate the numbers, run
+`make reproduce`. Defaults: batch 1, context 2.6K, acceptance 5.6 tokens/step, 4 chips at 8 TB/s HBM each.
 
 <a id="calibration"></a>
 
 ## Calibration
 
-The GPU execution model has two free parameters, fitted to the two measured step times. The as-built
-engine is modeled with its padded expert layout, PDL, fused all-reduces and side streams (01 §1).
+The GPU execution model has two free parameters. We fitted them to the two measured step times.
+The model of the as-built engine includes its padded expert layout, PDL, fused all-reduces and side
+streams (01 §1).
 
 | parameter | fitted | independent reference |
 |---|---|---|
@@ -24,10 +25,10 @@ engine is modeled with its padded expert layout, PDL, fused all-reduces and side
 | {{ k }} | {{ cal.measured_ms[k]|n(2) }} ms | {{ cal.predicted_ms[k]|n(3) }} ms | {{ cal.loo[k].predicted_ms|n(3) }} ms ({{ "%+.1f"|format(cal.loo[k].error_pct) }}%) |
 {% endfor %}
 
-**How strong is this?** Not very, and we want to be clear about it. Two parameters fitted to two
-points is exact by construction. The leave-one-out test has little power: any bandwidth prior from
-0.70 to 0.90 predicts the other configuration within about ±3%, which is close to the README's own
-run-to-run spread:
+**How strong is this calibration?** It is weak. A fit of two parameters to two points is exact by
+construction. The leave-one-out test has little power. Any bandwidth prior from 0.70 to 0.90
+predicts the other configuration with an error of about ±3% or less. This error is near the
+run-to-run spread of the README:
 
 | η prior | κ (µs) | predicted TP8 | error |
 |---|---|---|---|
@@ -35,8 +36,8 @@ run-to-run spread:
 | {{ r.eff }} | {{ r.kernel_overhead_us|n(2) }} | {{ r.pred_tp8_ms|n(3) }} ms | {{ "%+.1f"|format(r.err_pct) }}% |
 {% endfor %}
 
-What the data *do* pin is the sum of fixed costs given a bandwidth efficiency. We refit under every
-alternative we could construct:
+For a given bandwidth efficiency, the data *do* determine the sum of the fixed costs. We fitted the
+model again for each alternative that we were able to construct:
 
 | alternative | fitted η | fitted κ (µs) | fixed share of the TP4 step |
 |---|---|---|---|
@@ -45,10 +46,12 @@ alternative we could construct:
 {% endfor %}
 
 **Fixed share: {{ K.fixed_lo|pct }}-{{ K.fixed_hi|pct }}, central {{ K.fixed4_share|pct }}.** The fit cannot separate
-collective latency from other per-stage latency: 2.37, 5 and 10 µs all fit. GB300 and B300 also differ
-in more than bytes per GPU: host, power limits, verify-head precision, adaptive-verify thresholds and
-TP8-specific kernel variants. We model only the head precision and the padded layout. MDA-1 and the
-GPU software projections use the fitted η; nothing else they do depends on these GPU parameters.
+collective latency from other per-stage latency. The values 2.37, 5 and 10 µs all fit.
+
+GB300 and B300 also differ in more than bytes per GPU. They differ in host, power limits,
+verify-head precision, adaptive-verify thresholds and TP8-specific kernel variants. We model only
+the head precision and the padded layout. MDA-1 and the GPU software projections use the fitted η.
+No other part of these projections depends on these GPU parameters.
 
 <a id="baseline-vs-proposed"></a>
 
@@ -62,17 +65,17 @@ GPU software projections use the fitted η; nothing else they do depends on thes
 | {{ r.platform }} | {{ r.step_ms|n(2) }} | **{{ r.tok_s_user|n }}** | {{ r.hbm_busy|pct }} | {{ r.hbm_gb_per_chip|n(2) }} | {{ (r.watts/1000)|n(2) }} | {{ r.tok_per_joule|n(2) }} | {{ r.usd_per_mtok_owned|n(3) }} |
 {% endfor %}
 
-*measured:* 4 x GB300 {{ K.meas4.decode_tok_s|n }} tok/s (step {{ K.meas4.step_ms|n(2) }} ms); 8 x B300 {{ K.meas8.decode_tok_s|n }} tok/s (step {{ K.meas8.step_ms|n(2) }} ms).
-Model tok/s = 5.6 / step. The README's tok/s is client wall clock and implies {{ (K.meas4.decode_tok_s * K.meas4.step_ms / 1000)|n(2) }} tokens/step.
-† GPU power: 60% of TDP (*assumption*). MDA-1: bottom-up incl. NoC and power-delivery loss.
-‡ GPU $45K all-in (*assumption*), MDA-1 at cost + $300M NRE / 20K, 4 years, $0.0862/kWh, PUE 1.44.
-A GPU prefill pool adds ${{ CM.prefill_adder.usd_per_mtok|n(3) }}/M equally to every row: {{ (CM.prefill_adder.prefill_s*1000)|n(0) }} ms of 4-GPU prefill per 4K-token agent turn (roofline model scaled to the measured 1M prefill), over a {{ CM.prefill_adder.output_tokens|n }}-token answer. Headline $/token ratios include it.
-At the $9.50/GPU-hr market rental, today's GPU baseline costs ${{ C.gpu_tp4.usd_per_mtok|n(2) }}/M.
+- *measured:* 4 x GB300 {{ K.meas4.decode_tok_s|n }} tok/s (step {{ K.meas4.step_ms|n(2) }} ms); 8 x B300 {{ K.meas8.decode_tok_s|n }} tok/s (step {{ K.meas8.step_ms|n(2) }} ms).
+- The tok/s of the model = 5.6 / step. The tok/s of the README is client wall-clock time, and it implies {{ (K.meas4.decode_tok_s * K.meas4.step_ms / 1000)|n(2) }} tokens/step.
+- † GPU power: 60% of TDP (*assumption*). MDA-1 power: a bottom-up estimate that includes NoC and power-delivery loss.
+- ‡ GPU $45K all-in (*assumption*), MDA-1 at cost + $300M NRE / 20K, 4 years, $0.0862/kWh, PUE 1.44.
+- A GPU prefill pool adds ${{ CM.prefill_adder.usd_per_mtok|n(3) }}/M equally to each row. This cost is {{ (CM.prefill_adder.prefill_s*1000)|n(0) }} ms of 4-GPU prefill for each 4K-token agent turn, divided over a {{ CM.prefill_adder.output_tokens|n }}-token answer. The prefill time comes from the roofline model, scaled to the measured 1M prefill. The headline $/token ratios include this cost.
+- At the market rental price of $9.50/GPU-hr, today's GPU baseline costs ${{ C.gpu_tp4.usd_per_mtok|n(2) }}/M.
 
 **Headlines.**
-* The **dataflow-style software** projection on the same 4 x GB300 reaches {{ C.gpu_df_tp4.tok_s_user|n }} tok/s/user ({{ K.sw_vs_meas|x }} measured).
-* **MDA-1** reaches {{ C.asic.tok_s_user|n }} ({{ K.asic_vs_meas|x }} measured), which is {{ K.asic_vs_sw|x(2) }} the software at iso-bandwidth.
-* MDA-1 runs at {{ pct(C.asic.tok_s_user / K.roofline) }} of its HBM roofline ({{ K.roofline|n }} tok/s/user at the calibrated η).
+- The **dataflow-style software** projection on the same 4 x GB300 reaches {{ C.gpu_df_tp4.tok_s_user|n }} tok/s/user ({{ K.sw_vs_meas|x }} measured).
+- **MDA-1** reaches {{ C.asic.tok_s_user|n }} ({{ K.asic_vs_meas|x }} measured). This is {{ K.asic_vs_sw|x(2) }} the software projection at iso-bandwidth.
+- MDA-1 runs at {{ pct(C.asic.tok_s_user / K.roofline) }} of its HBM roofline ({{ K.roofline|n }} tok/s/user at the calibrated η).
 
 <a id="monte-carlo"></a>
 
@@ -80,10 +83,10 @@ At the $9.50/GPU-hr market rental, today's GPU baseline costs ${{ C.gpu_tp4.usd_
 
 ![Monte Carlo](../results/fig_monte_carlo.png)
 
-{{ K.MC.n }} joint draws over every MDA-1 constant:
-* η from 0.65 to 0.935;
-* log-uniform: dependent-fetch latency 0.17-1.5 µs, collective latency 1.4-4 µs, staging 16-256 MB;
-* hand-off and router each within a factor of 3 of the platform's base value, so neither side is favoured.
+We made {{ K.MC.n }} joint draws over every MDA-1 constant:
+- η from 0.65 to 0.935;
+- log-uniform: dependent-fetch latency 0.17-1.5 µs, collective latency 1.4-4 µs, staging 16-256 MB;
+- hand-off and router: each at most a factor of 3 from the base value of the platform. Thus the ranges favour neither side.
 
 | | 5th pct | median | 95th pct | joint worst corner |
 |---|---|---|---|---|
@@ -93,7 +96,7 @@ At the $9.50/GPU-hr market rental, today's GPU baseline costs ${{ C.gpu_tp4.usd_
 
 <a id="cost"></a>
 
-## Cost and energy: the only places silicon wins at batch 1
+## Cost and energy: the only advantages of silicon at batch 1
 
 | GPU assumption | GPU today $/M | GPU software $/M | MDA-1 $/M | MDA-1 advantage vs GPU software |
 |---|---|---|---|---|
@@ -107,8 +110,16 @@ At the $9.50/GPU-hr market rental, today's GPU baseline costs ${{ C.gpu_tp4.usd_
 | {{ (r.load_fraction*100)|n(0) }}% of TDP | {{ r.gpu_tok_per_joule|n(2) }} | {{ r.gpu_df_tok_per_joule|n(2) }} | {{ C.asic.tok_per_joule|n(2) }} | {{ r.asic_ratio_vs_gpu_df|x(2) }} |
 {% endfor %}
 
-MDA-1 unit cost (`sim/cost.py`): silicon ${{ CM.asic_unit_cost.die|n }}, HBM ${{ CM.asic_unit_cost.hbm|n }}, package/test ${{ CM.asic_unit_cost.package_test|n }},
-LPDDR ${{ CM.asic_unit_cost.host_dram|n }}, system share ${{ CM.asic_unit_cost.system_share|n }}, **NRE share ${{ CM.asic_unit_cost.nre_share|n }}** → ${{ CM.asic_unit_cost.total|n }} per package, at manufacturing cost with no margin and no respin.
+MDA-1 unit cost (`sim/cost.py`):
+- silicon ${{ CM.asic_unit_cost.die|n }};
+- HBM ${{ CM.asic_unit_cost.hbm|n }};
+- package/test ${{ CM.asic_unit_cost.package_test|n }};
+- LPDDR ${{ CM.asic_unit_cost.host_dram|n }};
+- system share ${{ CM.asic_unit_cost.system_share|n }};
+- **NRE share ${{ CM.asic_unit_cost.nre_share|n }}**.
+
+The total is ${{ CM.asic_unit_cost.total|n }} for each package. This is the manufacturing cost, with no margin and no respin.
+
 Break-even volume against GPUs owned at $45K:
 
 | NRE | vs GPU today | vs GPU software |
@@ -129,10 +140,10 @@ Break-even volume against GPUs owned at $45K:
 | {{ s.id }} {{ s.step }} | {{ s.kind }} | {{ s.tok_s_user|n }} | {{ s.hbm_busy|pct }} |
 {% endfor %}
 
-Every step before A5 runs on the GPUs Baseten already has. The persistent program (A1→A2) is the
-largest and least certain step: it assumes a stage hand-off can drop from the fitted
-{{ cal.kernel_overhead_us|n(1) }} µs to ~1 µs, which the fit cannot confirm because κ lumps launch residue, ramp,
-tail and grid-wide completion together. Flags (A2→A3) and cross-layer prefetch (A3→A4) follow.
+Each step before A5 runs on the GPUs that Baseten already has. The persistent program (A1→A2) is
+the largest step and the least certain step. It assumes that a stage hand-off can decrease from the fitted
+{{ cal.kernel_overhead_us|n(1) }} µs to ~1 µs. The fit cannot confirm this, because κ combines launch residue, ramp,
+tail and grid-wide completion. Flags (A2→A3) and cross-layer prefetch (A3→A4) are the next steps.
 The silicon step adds {{ sp(K.abl_by.A5.tok_s_user/K.abl_by.A4.tok_s_user - 1) }} at 4 chips.
 
 <a id="strong-scaling"></a>
@@ -147,9 +158,10 @@ The silicon step adds {{ sp(K.abl_by.A5.tok_s_user/K.abl_by.A4.tok_s_user - 1) }
 | {{ D.strong_scaling.asic[i].n_chips }} | {{ D.strong_scaling.gpu_tp4[i].tok_s_user|n }} | {{ D.strong_scaling.gpu_df_tp4[i].tok_s_user|n }} | {{ D.strong_scaling.asic[i].tok_s_user|n }} |
 {% endfor %}
 
-Every platform gets +0.1 µs of all-reduce latency per extra peer. MDA-1 beyond 4 packages assumes a
-switched fabric that is not designed here, so its 8- and 16-chip points are illustrative only.
-Per-stage fixed latency caps strong scaling: today's overheads flatten at about 2,000-2,300 tok/s/user.
+Each platform gets +0.1 µs of all-reduce latency for each extra peer. MDA-1 with more than
+4 packages assumes a switched fabric. This study does not design that fabric, thus the 8-chip and
+16-chip points of MDA-1 are illustrative only. Per-stage fixed latency limits strong scaling. With
+today's overheads, the speed becomes flat at about 2,000-2,300 tok/s/user.
 
 <a id="batch"></a>
 
@@ -163,17 +175,17 @@ Per-stage fixed latency caps strong scaling: today's overheads flatten at about 
 | {{ D.batch_sweep.asic[i].batch }} | {{ D.batch_sweep.gpu_tp4[i].tok_s_system|n }} | {{ D.batch_sweep.gpu_df_tp4[i].tok_s_system|n }} | {{ D.batch_sweep.asic[i].tok_s_system|n }} | {{ D.batch_sweep.gpu_df_tp4[i].usd_per_mtok_owned|n(3) }} | {{ D.batch_sweep.asic[i].usd_per_mtok_owned|n(3) }} |
 {% endfor %}
 
-The batched GPUs are projections: deepseek-ultrafast serves one request at a time. All platforms use
-two micro-batches. At batch 256 MDA-1 is compute-bound ({{ K.b256_asic.tok_s_system|n }} vs {{ K.b256_sw.tok_s_system|n }} tok/s),
-because it carries 40% of a B300's FLOPs. On an owned basis it stays cheaper per token at every batch
-size we simulated, given the $45K GPU assumption.
+The batched GPU numbers are projections, because deepseek-ultrafast serves one request at a time.
+All platforms use two micro-batches. At batch 256, MDA-1 is compute-bound ({{ K.b256_asic.tok_s_system|n }} vs {{ K.b256_sw.tok_s_system|n }} tok/s),
+because it has 40% of the FLOPs of a B300. On an owned basis, MDA-1 costs less per token at each
+batch size that we simulated. This result uses the $45K GPU assumption.
 
 ## Context length
 
 ![context](../results/fig_context_sweep.png)
 
-CSA2 keeps decode almost flat from 4K to 1M context. The indexer's linear scan is the only
-context-proportional term, and the engine runs it replicated on every rank.
+CSA2 keeps decode almost flat from 4K to 1M context. The linear scan of the indexer is the only
+context-proportional term. The engine runs a replica of this scan on each rank.
 
 <a id="hbm"></a>
 
@@ -197,10 +209,10 @@ context-proportional term, and the engine runs it replicated on every rank.
 | Rubin, dataflow-style software | {{ C.rubin_df_tp4.tok_s_user|n }} | {{ C.rubin_df_tp4.tok_per_joule|n(2) }} |
 | MDA-1 respin with the same HBM4 | {{ C.asic_hbm4.tok_s_user|n }} | {{ C.asic_hbm4.tok_per_joule|n(2) }} |
 
-Rubin power is assumed (1.8 kW; not in sources); its bandwidth is NVIDIA's NVL72 figure (the HGX
-page says 22 TB/s). HBM4 is priced at the 2027 forecast ($32/GB). With today's per-stage latency,
-Rubin's {{ K.rubin_bw_ratio|n(1) }}x bandwidth buys +{{ (K.rubin_vs_gb300*100)|n(0) }}%. With dataflow-style software on both
-platforms it buys {{ K.rubin_df_vs_df|x(2) }}, and on Rubin the software change alone is worth {{ K.rubin_df_vs_rubin|x(2) }}.
+Rubin power is an assumption (1.8 kW; not in sources). Its bandwidth is the NVL72 figure from NVIDIA
+(the HGX page says 22 TB/s). The HBM4 price is the 2027 forecast ($32/GB). With today's per-stage latency,
+the {{ K.rubin_bw_ratio|n(1) }}x bandwidth of Rubin gives +{{ (K.rubin_vs_gb300*100)|n(0) }}%. With dataflow-style software on both
+platforms, it gives {{ K.rubin_df_vs_df|x(2) }}. On Rubin, the software change alone gives {{ K.rubin_df_vs_rubin|x(2) }}.
 
 ## SRAM / staging buffer
 
@@ -213,7 +225,7 @@ platforms it buys {{ K.rubin_df_vs_df|x(2) }}, and on Rubin the software change 
 | tok/s/user | {% for p in D.sram_sweep.points %}{{ p.tok_s_user|n }} | {% endfor %}
 
 
-A few MB of staging per package captures the whole prefetch benefit at batch 1. With none, MDA-1 loses
+A few MB of staging for each package gives the full prefetch benefit at batch 1. With no staging, MDA-1 loses
 {{ pct(1 - D.sram_sweep.points[0].tok_s_user/D.sram_sweep.points[-1].tok_s_user) }}.
 
 <a id="expert-cache"></a>
@@ -222,9 +234,9 @@ A few MB of staging per package captures the whole prefetch benefit at batch 1. 
 
 ![expert cache](../results/fig_expert_cache.png)
 
-A sticky-Zipf trace generator was fit to the published DeepSeek-V2-Lite LRU miss rate (28% at 32 of 64
-experts); we match it at {{ pct(1 - D.expert_cache.locality_fit.lru_hit_dsv2lite) }} with stay = {{ D.expert_cache.locality_fit.stay }}.
-Applied to V4.1's 384 experts (per-package slice {{ D.expert_cache.per_slot_mb|n(1) }} MB):
+We fitted a sticky-Zipf trace generator to the published LRU miss rate of DeepSeek-V2-Lite (28% at
+32 of 64 experts). We match it at {{ pct(1 - D.expert_cache.locality_fit.lru_hit_dsv2lite) }} with stay = {{ D.expert_cache.locality_fit.stay }}.
+We applied the generator to the 384 experts of V4.1 (per-package slice {{ D.expert_cache.per_slot_mb|n(1) }} MB):
 
 | slots/layer | SRAM per package | LRU | LFU | Belady OPT |
 |---|---|---|---|---|
@@ -232,8 +244,8 @@ Applied to V4.1's 384 experts (per-package slice {{ D.expert_cache.per_slot_mb|n
 | {{ D.expert_cache.curves.lru[i].slots }} | {{ D.expert_cache.curves.lru[i].sram_gb_per_chip|n(1) }} GB | {{ D.expert_cache.curves.lru[i].hit|pct }} | {{ D.expert_cache.curves.lfu[i].hit|pct }} | {{ D.expert_cache.curves.opt[i].hit|pct }} |
 {% endfor %}
 
-**Negative result.** A useful expert cache needs gigabytes per package. The traces are synthetic;
-real V4.1 routing traces would settle it.
+**Negative result.** A useful expert cache needs gigabytes for each package. The traces are
+synthetic. Real V4.1 routing traces are necessary for a final answer.
 
 <a id="tornado"></a>
 
@@ -251,8 +263,8 @@ real V4.1 routing traces would settle it.
 
 ## SCALE-Sim cross-check
 
-SCALE-Sim v3 (cycle-level systolic simulator; compute stage only, see
-`experiments/scalesim_crosscheck.py`) on per-chip GEMM shapes:
+We ran SCALE-Sim v3 on per-chip GEMM shapes. SCALE-Sim v3 is a cycle-level systolic simulator. We
+used it for the compute stage only (see `experiments/scalesim_crosscheck.py`):
 
 | array | shape (M x N x K) | cycles | utilization | our model |
 |---|---|---|---|---|
@@ -260,8 +272,9 @@ SCALE-Sim v3 (cycle-level systolic simulator; compute stage only, see
 | {{ r.array }} | {{ r.shape }} ({{ r.M }} x {{ r.N }} x {{ r.K }}) | {{ r.cycles|n }} | {{ r.scalesim_util|pct(1) }} | {% if r.model_util is not none %}{{ r.model_util|pct(1) }}{% else %}-{% endif %} |
 {% endfor %}
 
-Before this cross-check our matrix-efficiency factor was 0.8, which SCALE-Sim showed to be 1.5-1.7x
-optimistic. We lowered it to 0.5. Batch-1 results did not move (bandwidth-bound); large-batch results fell.
+Before this cross-check, our matrix-efficiency factor was 0.8. SCALE-Sim showed that this value was
+1.5-1.7x optimistic. We decreased it to 0.5. The batch-1 results did not change, because they are
+bandwidth-bound. The large-batch results decreased.
 
 <a id="prefill-and-ttft"></a>
 
@@ -275,9 +288,9 @@ optimistic. We lowered it to 0.5. Batch-1 results did not move (bandwidth-bound)
 {% endif %}
 {% endfor %}
 
-The reported prefill runs {{ P.prefill.fit_k_tp4|n(1) }}x slower than our roofline model. Scaling by that factor
-on TP4 mispredicts TP8 by {{ "%+.0f"|format(P.prefill.pred_tp8_err_pct) }}%. **Prefill is not a calibrated result.** MDA-1 is
-decode-only by design, so TTFT keeps prefill on the GPU pool and adds the KV hand-off (400 Gb/s RDMA assumed):
+The reported prefill is {{ P.prefill.fit_k_tp4|n(1) }}x slower than our roofline model. When we scale the model by that
+factor on TP4, it mispredicts TP8 by {{ "%+.0f"|format(P.prefill.pred_tp8_err_pct) }}%. **Prefill is not a calibrated result.** MDA-1 is
+decode-only by design. Thus the TTFT model keeps prefill on the GPU pool and adds the KV hand-off (assumed: 400 Gb/s RDMA):
 
 | scenario | GPU TTFT | hybrid TTFT | KV handed off |
 |---|---|---|---|
@@ -285,5 +298,5 @@ decode-only by design, so TTFT keeps prefill on the GPU pool and adds the KV han
 | {{ r.scenario }} | {{ (r.gpu_ttft_s*1000)|n(0) }} ms | {{ (r.hybrid_ttft_s*1000)|n(0) }} ms | {{ r.kv_mb|n(1) }} MB ({{ r.kv_handoff_ms|n(2) }} ms) |
 {% endfor %}
 
-These figures are indicative only. For the short prompt the scaled model gives {{ (P.ttft.scenarios[0].gpu_ttft_s*1000)|n(0) }} ms,
-against the README's client-side 40 ms.
+These figures are indicative only. For the short prompt, the scaled model gives {{ (P.ttft.scenarios[0].gpu_ttft_s*1000)|n(0) }} ms.
+The README gives a client-side value of 40 ms.
